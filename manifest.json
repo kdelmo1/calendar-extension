@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Dates to Google Calendar",
+  "version": "0.1.0",
+  "description": "Review dates in a side panel before adding them to a separate Google Calendar.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "sidePanel"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open dates panel"
+  },
+  "side_panel": {
+    "default_path": "extension/sidepanel/index.html"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqfVm3ywtVDnBx8+PmFkylj26HpLHAdN55iWdNrG14cebrwvVK63Xpp28YeSZbYdSrggVAV5oB6oyJZta/TAV1RE2iHVBSf30RvGsWaeQK9HYPPxOYYFHcDfncQN+NNn5WC/Rmbtczr6deW754YspAIUF89sSwOWMgqfIgZbA/chpB/LNRt01/NGtL7l2gLc+qrbaW3xopTBw/JU3r4404RVRHtSJZG95IRZbztB+HP1o7iw1T2YoPGekvbnjZJfL4r0kAoCzneYREdOAxBIA9PO37sgL53RpiisVSaFm/tqWpESsZcdonVatxx7c/Dqsg3jyrb5GyQEPwtwesSCYLwIDAQAB"
+}
