@@ -4,9 +4,10 @@ import type { WriteResult } from "./types";
 type Props = {
   result: WriteResult;
   onUndo: () => void;
+  onConvertMore: () => void;
 };
 
-export default function SuccessScreen({ result, onUndo }: Props) {
+export default function SuccessScreen({ result, onUndo, onConvertMore }: Props) {
   // Move keyboard and screen reader focus to the heading when this screen appears.
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -31,10 +32,14 @@ export default function SuccessScreen({ result, onUndo }: Props) {
           Open in Google Calendar
         </a>
       </p>
-
-      <button type="button" onClick={onUndo} style={{ padding: "8px 12px" }}>
-        Undo (delete this calendar)
-      </button>
+      <div className="cal-row" style={{ alignItems: "center" }}>
+        <button type="button" className="cal-btn cal-btn-filled" onClick={onConvertMore}>
+          Convert more
+        </button>
+        <button type="button" className="cal-btn cal-btn-text" onClick={onUndo}>
+          Undo (delete this calendar)
+        </button>
+      </div>
     </div>
   );
 }
