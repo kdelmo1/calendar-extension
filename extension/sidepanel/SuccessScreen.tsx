@@ -6,9 +6,10 @@ type Props = {
   result: WriteResult;
   submitted: ParseResult | null;
   onUndo: () => void;
+  onConvertMore: () => void;
 };
 
-export default function SuccessScreen({ result, submitted, onUndo }: Props) {
+export default function SuccessScreen({ result, submitted, onUndo, onConvertMore }: Props) {
   // Move keyboard and screen reader focus to the heading when this screen appears.
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function SuccessScreen({ result, submitted, onUndo }: Props) {
         <a className="button-primary calendar-open" href={result.calendarLink} target="_blank" rel="noreferrer">
           Open in Google Calendar
         </a>
+        <button type="button" onClick={onConvertMore}>Convert more</button>
         <button type="button" onClick={onUndo}>Undo</button>
       </div>
     </div>

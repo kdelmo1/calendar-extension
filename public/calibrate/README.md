@@ -1,6 +1,6 @@
 # Calibrate UI assets and Lane 4 handoff
 
-Lane 1 supplies `extension/sidepanel/GlobalStyles.tsx`, branding in the manifest/menu, and these assets. Follow-up polish styles the input, review, success, error, and event-list components. At the user's request, the visible brand header was removed; `App.tsx` mounts only the theme toggle, aligned with **Add dates** on the input screen. Belinda's navigation and error recovery work is not implemented here. Capture, parser, Calendar, and runtime message contracts are unchanged.
+Lane 1 supplies `extension/sidepanel/GlobalStyles.tsx`, branding in the manifest/menu, and these assets. Follow-up polish styles the input, review, success, error, and event-list components. At the user's request, the visible brand header was removed; `App.tsx` mounts the shared Header toolbar with its theme toggle aligned with **Add dates** on the input screen. Belinda's navigation is now merged: Start over on non-input screens, Back to review for Calendar errors, and Convert more on success/undo. Header.tsx uses one shared theme toggle and does not restore the removed logo/title. Capture, parser, Calendar, and runtime message contracts are unchanged.
 
 The follow-up light accent is `#1A73E8` with white button text (4.51:1); dark uses `#8AB4F8` with black button text (9.96:1). Fields have 16px corners. Start/end dates sit side-by-side when space allows and stack below 340px. The existing direct-child review heading is visually hidden, preserving its screen-reader/focus role without editing `App.tsx`.
 

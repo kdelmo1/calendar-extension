@@ -207,7 +207,8 @@ export const css = `
     color: var(--text); flex-shrink: 0;
   }
   .theme-toggle { border-color: var(--divider); background: var(--surface); }
-  .theme-toolbar { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
+  .theme-toolbar { display: flex; justify-content: flex-end; gap: var(--space-1); margin-bottom: var(--space-2); }
+  .icon-button svg { width: var(--icon-size); height: var(--icon-size); fill: currentColor; }
   .theme-toolbar-input { position: absolute; top: var(--panel-padding); right: var(--panel-padding); margin: var(--space-0); }
   .material-symbols-outlined {
     font-family: 'Material Symbols Outlined'; font-style: normal; font-weight: var(--font-regular);

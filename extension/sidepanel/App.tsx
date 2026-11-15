@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import ErrorScreen from "./ErrorScreen";
-import GlobalStyles, { ThemeToggle } from "./GlobalStyles";
+import GlobalStyles from "./GlobalStyles";
 import InputScreen from "./InputScreen";
 import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
 import SuccessScreen from "./SuccessScreen";
+import Header from "./Header";
 import type {
   AppError,
   CaptureInput,
@@ -268,6 +269,11 @@ export default function App() {
 
   // ---------- Error recovery ----------
   // What the recovery button does, depending on the error code.
+  function goHome() {
+    setEditNote(null);
+    setScreen({ name: "input" });
+  }
+
   function recover(code: AppError["code"]) {
     if (code === "RATE_LIMIT" || code === "TIMEOUT") {
       // Repeat the last capture. If there is none, go to the input screen.
@@ -339,9 +345,10 @@ export default function App() {
     <>
       <GlobalStyles />
       <main className="app">
-        <div className={screen.name === "input" ? "theme-toolbar theme-toolbar-input" : "theme-toolbar"}>
-          <ThemeToggle />
-        </div>
+        <Header
+          onHome={screen.name === "input" ? undefined : goHome}
+          className={screen.name === "input" ? "theme-toolbar theme-toolbar-input" : "theme-toolbar"}
+        />
         {/* Always on the page, so changes are announced reliably. */}
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {announce(screen)}
@@ -413,6 +420,7 @@ export default function App() {
             result={screen.result}
             submitted={screen.submitted}
             onUndo={() => handleUndo(screen.result.calendarId)}
+            onConvertMore={goHome}
           />
         )}
 
@@ -420,18 +428,30 @@ export default function App() {
           <div>
             <h1 style={{ fontSize: 18 }}>Calendar removed</h1>
             <p>Nothing from this import is left in your Google Calendar.</p>
-            <button
-              type="button"
-              onClick={() =>
-                setScreen(
-                  lastReviewed
-                    ? { name: "review", data: lastReviewed }
-                    : { name: "input" }
-                )
-              }
-            >
-              {lastReviewed ? "Back to review" : "Start over"}
-            </button>
+              <div className="result-actions">
+                {lastReviewed ? (
+                  <>
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={goHome}
+                    >
+                      Convert more
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setScreen({ name: "review", data: lastReviewed })}
+                    >
+                      Back to review
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="primary" onClick={goHome}>
+                    Start over
+                  </button>
+                )}
+            </div>
           </div>
         )}
 
@@ -439,6 +459,11 @@ export default function App() {
           <ErrorScreen
             error={screen.error}
             onRecover={() => recover(screen.error.code)}
+            onBack={
+              lastReviewed
+                ? () => setScreen({ name: "review", data: lastReviewed })
+                : undefined
+            }
           />
         )}
       </main>
