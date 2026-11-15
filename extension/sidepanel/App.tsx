@@ -5,6 +5,7 @@ import InputScreen from "./InputScreen";
 import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
 import SuccessScreen from "./SuccessScreen";
+import Header from "./Header";
 import type {
   AppError,
   CaptureInput,
@@ -265,6 +266,11 @@ export default function App() {
 
   // ---------- Error recovery ----------
   // What the recovery button does, depending on the error code.
+  function goHome() {
+  setEditNote(null);
+  setScreen({ name: "input" });
+  }
+
   function recover(code: AppError["code"]) {
     if (code === "RATE_LIMIT" || code === "TIMEOUT") {
       // Repeat the last capture. If there is none, go to the input screen.
@@ -335,6 +341,7 @@ export default function App() {
   return (
     <>
       <GlobalStyles />
+      <Header onHome={screen.name === "input" ? undefined : goHome} />
       <main className="app">
         {/* Always on the page, so changes are announced reliably. */}
         <div className="sr-only" aria-live="polite" aria-atomic="true">
@@ -406,6 +413,7 @@ export default function App() {
           <SuccessScreen
             result={screen.result}
             onUndo={() => handleUndo(screen.result.calendarId)}
+            onConvertMore = {goHome}
           />
         )}
 
@@ -413,18 +421,31 @@ export default function App() {
           <div>
             <h1 style={{ fontSize: 18 }}>Calendar removed</h1>
             <p>Nothing from this import is left in your Google Calendar.</p>
-            <button
-              type="button"
-              onClick={() =>
-                setScreen(
-                  lastReviewed
-                    ? { name: "review", data: lastReviewed }
-                    : { name: "input" }
-                )
-              }
-            >
-              {lastReviewed ? "Back to review" : "Start over"}
-            </button>
+              <div className="cal-row" style={{ alignItems: "center" }}>
+                {lastReviewed ? (
+                  <>
+                    <button
+                      type="button"
+                      className="cal-btn cal-btn-filled"
+                      onClick={goHome}
+                    >
+                      Convert more
+                    </button>
+
+                    <button
+                      type="button"
+                      className="cal-btn cal-btn-text"
+                      onClick={() => setScreen({ name: "review", data: lastReviewed })}
+                    >
+                      Back to review
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="cal-btn cal-btn-filled" onClick={goHome}>
+                    Start over
+                  </button>
+                )}
+            </div>
           </div>
         )}
 
@@ -432,6 +453,11 @@ export default function App() {
           <ErrorScreen
             error={screen.error}
             onRecover={() => recover(screen.error.code)}
+            onBack={
+              lastReviewed
+                ? () => setScreen({ name: "review", data: lastReviewed })
+                : undefined
+            }
           />
         )}
       </main>
