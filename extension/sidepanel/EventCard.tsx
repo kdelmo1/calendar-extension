@@ -26,17 +26,9 @@ export default function EventCard({ event, onChange, onDelete }: Props) {
   const id = event.id;
 
   return (
-    <li
-      style={{
-        listStyle: "none",
-        border: "1px solid #bbb",
-        borderRadius: 6,
-        padding: 8,
-        marginBottom: 8,
-      }}
-    >
-      <div style={{ marginBottom: 6 }}>
-        <label htmlFor={`title-${id}`} style={{ display: "block" }}>
+    <li className="event-card">
+      <div>
+        <label htmlFor={`title-${id}`}>
           Title
         </label>
         <input
@@ -44,36 +36,37 @@ export default function EventCard({ event, onChange, onDelete }: Props) {
           type="text"
           value={event.title}
           onChange={(e) => onChange({ ...event, title: e.target.value })}
-          style={{ width: "100%", boxSizing: "border-box" }}
         />
       </div>
 
-      <div style={{ marginBottom: 6 }}>
-        <label htmlFor={`start-${id}`} style={{ display: "block" }}>
-          Start
-        </label>
-        <input
-          id={`start-${id}`}
-          type={inputType}
-          value={toValue(event.start)}
-          onChange={(e) => onChange({ ...event, start: e.target.value })}
-        />
+      <div className="event-date-grid">
+        <div>
+          <label htmlFor={`start-${id}`}>
+            Start
+          </label>
+          <input
+            id={`start-${id}`}
+            type={inputType}
+            value={toValue(event.start)}
+            onChange={(e) => onChange({ ...event, start: e.target.value })}
+          />
+        </div>
+
+        <div>
+          <label htmlFor={`end-${id}`}>
+            End
+          </label>
+          <input
+            id={`end-${id}`}
+            type={inputType}
+            value={toValue(event.end)}
+            onChange={(e) => onChange({ ...event, end: e.target.value })}
+          />
+        </div>
       </div>
 
-      <div style={{ marginBottom: 6 }}>
-        <label htmlFor={`end-${id}`} style={{ display: "block" }}>
-          End
-        </label>
-        <input
-          id={`end-${id}`}
-          type={inputType}
-          value={toValue(event.end)}
-          onChange={(e) => onChange({ ...event, end: e.target.value })}
-        />
-      </div>
-
-      <div style={{ marginBottom: 6 }}>
-        <label htmlFor={`allday-${id}`}>
+      <div>
+        <label className="checkbox-label" htmlFor={`allday-${id}`}>
           <input
             id={`allday-${id}`}
             type="checkbox"
@@ -85,18 +78,20 @@ export default function EventCard({ event, onChange, onDelete }: Props) {
       </div>
 
       {/* Show where the event came from so the user can double-check it */}
-      <details style={{ marginBottom: 6 }}>
-        <summary>Source text</summary>
-        <p style={{ fontSize: 12, margin: "4px 0" }}>{event.sourceText}</p>
-      </details>
+      <div className="event-actions">
+        <details>
+          <summary>Source text</summary>
+          <p className="event-source">{event.sourceText}</p>
+        </details>
 
-      <button type="button" onClick={() => onDelete(event.id)}>
-        Delete{/* screen readers hear the title below */}
-        <span style={{ position: "absolute", left: -9999 }}>
-          {" "}
-          {event.title}
-        </span>
-      </button>
+        <button type="button" onClick={() => onDelete(event.id)}>
+          Delete{/* screen readers hear the title below */}
+          <span className="sr-only">
+            {" "}
+            {event.title}
+          </span>
+        </button>
+      </div>
     </li>
   );
 }

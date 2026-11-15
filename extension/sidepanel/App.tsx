@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ErrorScreen from "./ErrorScreen";
-import GlobalStyles from "./GlobalStyles";
+import GlobalStyles, { ThemeToggle } from "./GlobalStyles";
 import InputScreen from "./InputScreen";
 import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
@@ -336,6 +336,9 @@ export default function App() {
     <>
       <GlobalStyles />
       <main className="app">
+        <div className={screen.name === "input" ? "theme-toolbar theme-toolbar-input" : "theme-toolbar"}>
+          <ThemeToggle />
+        </div>
         {/* Always on the page, so changes are announced reliably. */}
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {announce(screen)}

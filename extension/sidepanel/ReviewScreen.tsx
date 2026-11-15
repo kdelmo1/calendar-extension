@@ -73,21 +73,22 @@ export default function ReviewScreen({
   }
 
   return (
-    <div>
-      <label htmlFor="calendar-name" style={{ display: "block" }}>
-        Calendar name
-      </label>
-      <input
-        id="calendar-name"
-        type="text"
-        value={calendarName}
-        onChange={(e) => setCalendarName(e.target.value)}
-        style={{ width: "100%", boxSizing: "border-box", marginBottom: 12 }}
-      />
+    <div className="review-screen">
+      <div>
+        <label htmlFor="calendar-name">
+          Calendar name
+        </label>
+        <input
+          id="calendar-name"
+          type="text"
+          value={calendarName}
+          onChange={(e) => setCalendarName(e.target.value)}
+        />
+      </div>
 
       {/* Plain-English edits (optional feature) */}
-      <div style={{ marginBottom: 12 }}>
-        <label htmlFor="edit-instruction" style={{ display: "block" }}>
+      <div className="review-edit">
+        <label htmlFor="edit-instruction">
           Tell us what to change
         </label>
         <input
@@ -99,13 +100,11 @@ export default function ReviewScreen({
           onKeyDown={(e) => {
             if (e.key === "Enter") handleEditSubmit();
           }}
-          style={{ width: "100%", boxSizing: "border-box" }}
         />
         <button
           type="button"
           onClick={handleEditSubmit}
           disabled={editBusy || !instruction.trim()}
-          style={{ marginTop: 6, padding: "6px 10px" }}
         >
           {editBusy ? "Updating…" : "Apply change"}
         </button>
@@ -114,10 +113,7 @@ export default function ReviewScreen({
         {editNote && (
           <p
             role={editNote.isError ? "alert" : "status"}
-            style={{
-              margin: "6px 0 0",
-              color: editNote.isError ? "#b00020" : "inherit",
-            }}
+            className="edit-note"
           >
             {editNote.text}
           </p>
@@ -126,10 +122,10 @@ export default function ReviewScreen({
 
       {needsCheck.length > 0 && (
         <section aria-labelledby="check-heading">
-          <h2 id="check-heading" style={{ fontSize: 16 }}>
-            Check these ({needsCheck.length})
+          <h2 id="check-heading">
+            Check these <span className="section-count">({needsCheck.length})</span>
           </h2>
-          <ul style={{ padding: 0, margin: 0 }}>
+          <ul>
             {needsCheck.map((e) => (
               <EventCard
                 key={e.id}
@@ -143,10 +139,10 @@ export default function ReviewScreen({
       )}
 
       <section aria-labelledby="good-heading">
-        <h2 id="good-heading" style={{ fontSize: 16 }}>
-          Looks good ({looksGood.length})
+        <h2 id="good-heading">
+          Looks good <span className="section-count">({looksGood.length})</span>
         </h2>
-        <ul style={{ padding: 0, margin: 0 }}>
+        <ul>
           {looksGood.map((e) => (
             <EventCard
               key={e.id}
@@ -158,14 +154,16 @@ export default function ReviewScreen({
         </ul>
       </section>
 
-      <button
-        type="button"
-        onClick={handleAdd}
-        disabled={events.length === 0}
-        style={{ marginTop: 8, padding: "8px 12px" }}
-      >
-        Add to Google Calendar ({events.length})
-      </button>
+      <div className="review-footer">
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={events.length === 0}
+          className="primary"
+        >
+          Add to Google Calendar ({events.length})
+        </button>
+      </div>
     </div>
   );
 }
