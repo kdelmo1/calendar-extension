@@ -24,7 +24,11 @@ type Match = { sha256?: string; phrases?: string[]; imageUrlIncludes?: string[] 
 const DEMOS: { name: string; match: Omit<Match, "sha256">; useHash: boolean }[] = [
   {
     name: "ucsc-key-dates",
-    match: { phrases: ["Instruction Begins", "Final Examinations", "Winter 2027", "Quarter Ends"] },
+    match: {
+      // The first 4 are in the Key Dates table; the last 3 are further down, so highlighting
+      // only the table is NOT treated as the demo (it would get the full-page backup).
+      phrases: ["Instruction Begins", "Final Examinations", "Winter 2027", "Quarter Ends", "Juneteenth", "Withdraw from a Class", "Priority Enrollment"],
+    },
     useHash: false,
   },
   {
