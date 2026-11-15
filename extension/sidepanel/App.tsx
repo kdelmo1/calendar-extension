@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ErrorScreen from "./ErrorScreen";
+import GlobalStyles from "./GlobalStyles";
 import InputScreen from "./InputScreen";
 import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
@@ -59,6 +60,24 @@ function loadingText(input: CaptureInput): string {
   return "Reading file…";
 }
 
+// What a screen reader should hear when the screen changes.
+function announce(screen: Screen): string {
+  switch (screen.name) {
+    case "input":
+      return "Add your dates.";
+    case "loading":
+      return screen.message;
+    case "review":
+      return `Review your events. ${screen.data.events.length} events found.`;
+    case "success":
+      return `Added ${screen.result.added} events.`;
+    case "undone":
+      return "Calendar removed.";
+    case "error":
+      return screen.error.message;
+  }
+}
+
 // Send a message to the other lanes. Safe to call outside the extension.
 function send(message: Message) {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
@@ -115,6 +134,12 @@ export default function App() {
 
   // The capture we started from storage, so a live message for it is ignored.
   const startedFromStorage = useRef<string | null>(null);
+
+  // After loading, keyboard focus would be lost. Put it on the review heading.
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (screen.name === "review") reviewHeading.current?.focus();
+  }, [screen.name]);
 
   // ---------- Parsing (Lane 2) ----------
   function startParsing(input: CaptureInput) {
@@ -308,98 +333,108 @@ export default function App() {
   }, []);
 
   return (
-    <main style={{ padding: 12, fontFamily: "sans-serif" }}>
-      {SHOW_DEMO_CONTROLS && (
-        <div style={{ marginBottom: 12 }}>
-          <button
-            type="button"
-            style={{ marginRight: 4 }}
-            onClick={() => handleInputSubmit({ kind: "text", text: "fake" })}
-          >
-            Simulate: capture, then result
-          </button>
-          <button
-            type="button"
-            onClick={() => setScreen({ name: "review", data: fakeData })}
-          >
-            Show sample review
-          </button>
+    <>
+      <GlobalStyles />
+      <main className="app">
+        {/* Always on the page, so changes are announced reliably. */}
+        <div className="sr-only" aria-live="polite" aria-atomic="true">
+          {announce(screen)}
         </div>
-      )}
 
-      {SHOW_ERROR_TESTS && (
-        <div style={{ marginBottom: 12 }}>
-          <p style={{ margin: "0 0 4px" }}>Test errors:</p>
-          {ERROR_CODES.map((code) => (
+        {SHOW_DEMO_CONTROLS && (
+          <div style={{ marginBottom: 12 }}>
             <button
-              key={code}
               type="button"
-              style={{ marginRight: 4, marginBottom: 4 }}
+              style={{ marginRight: 4 }}
+              onClick={() => handleInputSubmit({ kind: "text", text: "fake" })}
+            >
+              Simulate: capture, then result
+            </button>
+            <button
+              type="button"
+              onClick={() => setScreen({ name: "review", data: fakeData })}
+            >
+              Show sample review
+            </button>
+          </div>
+        )}
+
+        {SHOW_ERROR_TESTS && (
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 4px" }}>Test errors:</p>
+            {ERROR_CODES.map((code) => (
+              <button
+                key={code}
+                type="button"
+                style={{ marginRight: 4, marginBottom: 4 }}
+                onClick={() =>
+                  setScreen({
+                    name: "error",
+                    error: { code, message: `Fake ${code} message for testing.` },
+                  })
+                }
+              >
+                {code}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {screen.name === "input" && <InputScreen onSubmit={handleInputSubmit} />}
+
+        {screen.name === "loading" && <LoadingScreen message={screen.message} />}
+
+        {screen.name === "review" && (
+          <>
+            <h1 ref={reviewHeading} tabIndex={-1} style={{ fontSize: 18 }}>
+              Review your events
+            </h1>
+            {/* key makes React start fresh when new events arrive */}
+            <ReviewScreen
+              key={screen.data.calendarName + screen.data.events.length}
+              initial={screen.data}
+              onAdd={handleAdd}
+              onEdit={handleEditRequest}
+              editBusy={editBusy}
+              editNote={editNote}
+              replacement={editReplacement}
+            />
+          </>
+        )}
+
+        {screen.name === "success" && (
+          <SuccessScreen
+            result={screen.result}
+            onUndo={() => handleUndo(screen.result.calendarId)}
+          />
+        )}
+
+        {screen.name === "undone" && (
+          <div>
+            <h1 style={{ fontSize: 18 }}>Calendar removed</h1>
+            <p>Nothing from this import is left in your Google Calendar.</p>
+            <button
+              type="button"
               onClick={() =>
-                setScreen({
-                  name: "error",
-                  error: { code, message: `Fake ${code} message for testing.` },
-                })
+                setScreen(
+                  lastReviewed
+                    ? { name: "review", data: lastReviewed }
+                    : { name: "input" }
+                )
               }
             >
-              {code}
+              {lastReviewed ? "Back to review" : "Start over"}
             </button>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
 
-      {screen.name === "input" && <InputScreen onSubmit={handleInputSubmit} />}
-
-      {screen.name === "loading" && <LoadingScreen message={screen.message} />}
-
-      {screen.name === "review" && (
-        <>
-          <h1 style={{ fontSize: 18 }}>Review your events</h1>
-          {/* key makes React start fresh when new events arrive */}
-          <ReviewScreen
-            key={screen.data.calendarName + screen.data.events.length}
-            initial={screen.data}
-            onAdd={handleAdd}
-            onEdit={handleEditRequest}
-            editBusy={editBusy}
-            editNote={editNote}
-            replacement={editReplacement}
+        {screen.name === "error" && (
+          <ErrorScreen
+            error={screen.error}
+            onRecover={() => recover(screen.error.code)}
           />
-        </>
-      )}
-
-      {screen.name === "success" && (
-        <SuccessScreen
-          result={screen.result}
-          onUndo={() => handleUndo(screen.result.calendarId)}
-        />
-      )}
-
-      {screen.name === "undone" && (
-        <div role="status">
-          <h1 style={{ fontSize: 18 }}>Calendar removed</h1>
-          <p>Nothing from this import is left in your Google Calendar.</p>
-          <button
-            type="button"
-            onClick={() =>
-              setScreen(
-                lastReviewed
-                  ? { name: "review", data: lastReviewed }
-                  : { name: "input" }
-              )
-            }
-          >
-            {lastReviewed ? "Back to review" : "Start over"}
-          </button>
-        </div>
-      )}
-
-      {screen.name === "error" && (
-        <ErrorScreen
-          error={screen.error}
-          onRecover={() => recover(screen.error.code)}
-        />
-      )}
-    </main>
+        )}
+      </main>
+    </>
   );
 }
