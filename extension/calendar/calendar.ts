@@ -87,14 +87,14 @@ export async function addEvent(token: string, calendarId: string, event: Calenda
   if (event.allDay) {
     // Google all-day end dates are exclusive, so we add 1 day to the inclusive end date
     const endDateObj = new Date(event.end);
-    endDateObj.setDate(endDateObj.getDate() + 1);
+    endDateObj.setUTCDate(endDateObj.getUTCDate() + 1); // UTC math: local math breaks on the daylight-saving day
     const exclusiveEndStr = endDateObj.toISOString().split('T')[0];
 
     googleEvent.start = { date: event.start };
     googleEvent.end = { date: exclusiveEndStr };
   } else {
-    googleEvent.start = { dateTime: event.start, timeZone: timeZone };
-    googleEvent.end = { dateTime: event.end, timeZone: timeZone };
+    googleEvent.start = { dateTime: withSeconds(event.start), timeZone: timeZone };
+    googleEvent.end = { dateTime: withSeconds(event.end), timeZone: timeZone };
   }
 
   // 4. Send the POST request to Google Calendar API
@@ -188,12 +188,12 @@ export async function writeCalendar(token: string, parseResult: { calendarName: 
 
         if (event.allDay) {
           const endDateObj = new Date(event.end);
-          endDateObj.setDate(endDateObj.getDate() + 1);
+          endDateObj.setUTCDate(endDateObj.getUTCDate() + 1); // UTC math: local math breaks on the daylight-saving day
           googleEvent.start = { date: event.start };
           googleEvent.end = { date: endDateObj.toISOString().split('T')[0] };
         } else {
-          googleEvent.start = { dateTime: event.start, timeZone: parseResult.timeZone };
-          googleEvent.end = { dateTime: event.end, timeZone: parseResult.timeZone };
+          googleEvent.start = { dateTime: withSeconds(event.start), timeZone: parseResult.timeZone };
+          googleEvent.end = { dateTime: withSeconds(event.end), timeZone: parseResult.timeZone };
         }
 
         // Execute request with retry logic
@@ -300,4 +300,9 @@ export async function makeCalendarPublic(token: string, calendarId: string): Pro
     console.warn("Could not make calendar public (non-fatal):", errText);
     // We log a warning instead of crashing, since public sharing is optional
   }
+}
+// Google wants "YYYY-MM-DDTHH:MM:SS". Times edited in the review screen come back
+// as "2027-01-04T09:00" (no seconds), so add ":00" when they're missing.
+function withSeconds(dateTime: string): string {
+  return dateTime.length === 16 ? `${dateTime}:00` : dateTime;
 }
