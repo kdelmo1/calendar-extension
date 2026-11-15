@@ -5,8 +5,20 @@
   "description": "Review dates in a side panel before adding them to a separate Google Calendar.",
   "minimum_chrome_version": "116",
   "permissions": [
-    "sidePanel"
+    "identity",
+    "contextMenus",
+    "sidePanel",
+    "activeTab",
+    "storage"
   ],
+  "host_permissions": [
+    "https://calendar-proxy-r76ml3czfq-uw.a.run.app/*",
+    "https://www.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "371346307908-g320o0jqpaijkfq0rba5a23djf1ivn3e.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/calendar"]
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
