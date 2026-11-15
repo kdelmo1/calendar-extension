@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
-import type { AppError, CaptureInput, Message, ParseResult } from "./types";
+import SuccessScreen from "./SuccessScreen";
+import type { AppError, CaptureInput, Message, ParseResult, WriteResult } from "./types";
 // Fake data from Lane 2's fixtures folder (repo root).
 import fixture from "../../fixtures/ucsc-winter.json";
 
@@ -10,9 +11,13 @@ const fakeData = fixture as unknown as ParseResult;
 
 const SHOW_DEMO_CONTROLS = true;
 
+const USE_FAKE_BACKEND = true;
+
 type Screen = 
   | { name: "loading"; message: string }
   | { name: "review"; data: ParseResult }
+  | { name: "success"; result: WriteResult }
+  | { name: "undone" }
   | { name: "error"; error:AppError };
 function isAppError(x: unknown): x is AppError {
   return typeof x === "object" && x !== null && "code" in x && "message" in x;
@@ -37,6 +42,7 @@ export default function App() {
   // Start on the review screen with fake data, as before.
   const [screen, setScreen] = useState<Screen>({ name: "review", data: fakeData });
 
+  const [lastReviewed, setLastReviewed] = useState<ParseResult>(fakeData);
   // Show loading text, then ask Lane 2 to parse.
   function startParsing(input: CaptureInput) {
     setScreen({ name: "loading", message: loadingText(input) });
@@ -54,28 +60,65 @@ export default function App() {
     setTimeout(() => setScreen({ name: "review", data: result }), 1200);
   }
 
+  // Send the edited events to Lane 3. For now we only log it.
+    function handleAdd(result: ParseResult) {
+    setLastReviewed(result);
+    setScreen({ name: "loading", message: "Creating your calendar…" });
+    send({ type: "WRITE_REQUEST", payload: result });
+
+    if (USE_FAKE_BACKEND) {
+      // Pretend Lane 3 answered after 1.5 seconds.
+      setTimeout(() => {
+        handleWriteResult({
+          calendarId: "fake-calendar-id",
+          calendarLink: "https://calendar.google.com/calendar/u/0/r",
+          added: result.events.length,
+          failed: [],
+        });
+      }, 1500);
+    }
+  }
+
+  function handleWriteResult(payload: unknown) {
+    if (isAppError(payload)) {
+      setScreen({ name: "error", error: payload });
+      return;
+    }
+    setScreen({ name: "success", result: payload as WriteResult });
+  }
+
+  // ---------- Undo (Lane 3) ----------
+  function handleUndo(calendarId: string) {
+    setScreen({ name: "loading", message: "Removing calendar…" });
+    send({ type: "UNDO_REQUEST", payload: { calendarId } });
+
+    if (USE_FAKE_BACKEND) {
+      setTimeout(() => handleUndoResult({ ok: true }), 1000);
+    }
+  }
+
+  function handleUndoResult(payload: unknown) {
+    if (isAppError(payload)) {
+      setScreen({ name: "error", error: payload });
+      return;
+    }
+    setScreen({ name: "undone" });
+  }
+
   // Listen for messages from the other lanes.
   useEffect(() => {
     if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
 
     function listener(message: Message) {
-      if (message.type === "CAPTURE_READY") {
-        startParsing(message.payload as CaptureInput);
-      }
-      if (message.type === "PARSE_RESULT") {
-        handleParseResult(message.payload);
-      }
+      if (message.type === "CAPTURE_READY") startParsing(message.payload as CaptureInput);
+      if (message.type === "PARSE_RESULT") handleParseResult(message.payload);
+      if (message.type === "WRITE_RESULT") handleWriteResult(message.payload);
+      if (message.type === "UNDO_RESULT") handleUndoResult(message.payload);
     }
 
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
   }, []);
-
-  // Send the edited events to Lane 3. For now we only log it.
-  function handleAdd(result: ParseResult) {
-    console.log("WRITE_REQUEST", result);
-    // Later: send({ type: "WRITE_REQUEST", payload: result });
-  }
 
   return (
     <main style={{ padding: 12, fontFamily: "sans-serif" }}>
@@ -99,13 +142,35 @@ export default function App() {
         <>
           <h1 style={{ fontSize: 18 }}>Review your events</h1>
           {/* key makes React start fresh when new events arrive */}
-          <ReviewScreen key={screen.data.calendarName + screen.data.events.length} initial={screen.data} onAdd={handleAdd} />
+          <ReviewScreen
+            key={screen.data.calendarName + screen.data.events.length}
+            initial={screen.data}
+            onAdd={handleAdd}
+          />
         </>
       )}
 
-      {screen.name === "error" && (
-        <p role="alert">{screen.error.message}</p>
+      {screen.name === "success" && (
+        <SuccessScreen
+          result={screen.result}
+          onUndo={() => handleUndo(screen.result.calendarId)}
+        />
       )}
+
+      {screen.name === "undone" && (
+        <div role="status">
+          <h1 style={{ fontSize: 18 }}>Calendar removed</h1>
+          <p>Nothing from this import is left in your Google Calendar.</p>
+          <button
+            type="button"
+            onClick={() => setScreen({ name: "review", data: lastReviewed })}
+          >
+            Back to review
+          </button>
+        </div>
+      )}
+
+      {screen.name === "error" && <p role="alert">{screen.error.message}</p>}
     </main>
   );
 }

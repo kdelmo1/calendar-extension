@@ -42,3 +42,10 @@ export type CaptureInput = {
 
 // Every chrome.runtime message looks like this.
 export type Message = { type: string; payload?: unknown };
+
+export type WriteResult = {
+  calendarId: string;
+  calendarLink: string;
+  added: number;
+  failed: { eventId: string; reason: string }[];
+};
