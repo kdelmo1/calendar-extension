@@ -1,6 +1,15 @@
+import { useEffect, useState } from "react";
+
 type Props = { message: string };
 
 export default function LoadingScreen({ message }: Props) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    const timer = window.setTimeout(() => setSlow(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
   return (
     // role="status" makes screen readers announce the text when it changes.
     <div role="status" aria-live="polite" style={{ textAlign: "center", padding: 24 }}>
@@ -23,6 +32,11 @@ export default function LoadingScreen({ message }: Props) {
         }}
       />
       <p style={{ margin: 0 }}>{message}</p>
+      {slow && (
+        <p style ={{margin:"8px 0 0", frontSize: 13}}>
+          Still working. Big pages can take up to 30 seconds.
+        </p>
+      )}
     </div>
   );
 }
