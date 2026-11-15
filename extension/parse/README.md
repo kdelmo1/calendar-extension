@@ -1,7 +1,7 @@
 # extension/parse/ — Lane 2 (extension side)
 
-Runs in the extension's service worker. Handles `PARSE_REQUEST`, calls our server
-(`proxy/`, deployed on Cloud Run), and sends back `PARSE_RESULT`.
+Runs in the extension's service worker. Handles `PARSE_REQUEST` and `EDIT_REQUEST`, calls our
+server (`proxy/`, deployed on Cloud Run), and sends back `PARSE_RESULT` / `EDIT_RESULT`.
 
 ```
 Side panel (Lane 4) --PARSE_REQUEST { CaptureInput }--> extension/parse
@@ -35,6 +35,32 @@ const payload = await chrome.runtime.sendMessage({ type: "PARSE_REQUEST", payloa
 `payload` is a `ParseResult`, or an `AppError` (`{ code, message }`) whose `message`
 is ready to show the user. Possible codes: `NO_DATES`, `RATE_LIMIT`, `TIMEOUT`, `PARSE_FAILED`.
 Big inputs can take up to ~30 s; the extension gives up after 40 s with `TIMEOUT`.
+
+## Plain-English edits (Lane 4)
+
+Add a text box to the review screen ("Tell us what to change…"). On submit:
+
+```ts
+const answer = await chrome.runtime.sendMessage({
+  type: "EDIT_REQUEST",
+  payload: {
+    events: current.events,              // the events as they are now in the panel (after the user's edits)
+    instruction: text,                   // e.g. "move the midterm to Friday"
+    calendarName: current.calendarName,  // optional: kept in the result
+    timeZone: current.timeZone,          // optional
+  },
+});
+// The same answer also arrives as a separate EDIT_RESULT message.
+if ("code" in answer) showError(answer.message);  // AppError
+else {
+  current = answer.result;                        // a full ParseResult: replace the list with it
+  showToast(answer.summary);                      // e.g. 'Updated 1 event: "Midterm". Deleted 4 events: ...'
+}
+```
+
+Event ids are kept for unchanged and edited events; new events get new ids. If the instruction
+wasn't a change request, `result` is the same list and `summary` explains (e.g. "Which midterm do
+you mean?"). Edits take ~1 s. They need the internet (no demo backups for edits).
 
 ## Demo backups (task 10)
 
@@ -86,5 +112,5 @@ cd proxy && npx tsx ../extension/parse/try-handler.ts
 ```
 
 Sends a real request through Cloud Run and checks the failure cases (server down,
-timeout, bad answer) and the demo backups (server down, offline, not a demo input, server up).
-Should end with `14/14 cases passed.`
+timeout, bad answer), the demo backups (server down, offline, not a demo input, server up), and
+EDIT_REQUEST -> EDIT_RESULT. Should end with `17/17 cases passed.`

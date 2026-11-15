@@ -5,9 +5,13 @@
 //   POST /parse   -> body: CaptureInput
 //                    200: ParseResult
 //                    4xx/5xx: AppError  { code, message }
+//   POST /edit    -> body: { events, instruction, calendarName?, timeZone? }
+//                    200: { result: ParseResult, summary }
+//                    4xx/5xx: AppError
 
 import express from "express";
 import { AppErrorException } from "./errors.js";
+import { editEvents, type EditRequest } from "./edit.js";
 import { parseCapture } from "./parse.js";
 import type { AppError, CaptureInput } from "./types.js";
 
@@ -74,14 +78,28 @@ app.post("/parse", async (req, res) => {
     console.log(`/parse ok: ${result.events.length} events in ${Date.now() - started} ms`);
     res.json(result);
   } catch (err) {
-    sendError(res, err);
+    sendError(res, err, "/parse");
+  }
+});
+
+// Plain-English edits (see edit.ts).
+//   body: { events: CalendarEvent[], instruction: string, calendarName?, timeZone? }
+//   200:  { result: ParseResult, summary: string }
+app.post("/edit", async (req, res) => {
+  const started = Date.now();
+  try {
+    const answer = await editEvents(req.body as EditRequest);
+    console.log(`/edit ok: "${answer.summary}" in ${Date.now() - started} ms`);
+    res.json(answer);
+  } catch (err) {
+    sendError(res, err, "/edit");
   }
 });
 
 // Turns any error into an AppError reply.
-function sendError(res: express.Response, err: unknown) {
+function sendError(res: express.Response, err: unknown, route: string) {
   if (err instanceof AppErrorException) {
-    console.warn(`/parse ${err.code}: ${err.message}`);
+    console.warn(`${route} ${err.code}: ${err.message}`);
     res.status(err.status).json(err.toJSON());
     return;
   }

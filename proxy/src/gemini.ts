@@ -2,6 +2,10 @@
 // way it can fail into an AppError.
 // Docs: https://ai.google.dev/api/generate-content
 //
+// Two kinds of request, sharing the same retries and error handling:
+//   askGemini       - "answer in this JSON shape" (structured output), used by /parse
+//   askGeminiTools  - "call these functions" (function calling), used by /edit
+//
 // What happens when things go wrong:
 //   Gemini busy (503/500)   -> wait a moment and retry; then try the backup model
 //   Rate limit (429)        -> try the backup model right away (it has its own limit)
@@ -30,30 +34,114 @@ export type GeminiPart =
   | { text: string }
   | { inlineData: { mimeType: string; data: string } };
 
+// A function Gemini asked us to run, e.g. { name: "delete_events", args: { ids: ["e3"] } }
+export type FunctionCall = { name: string; args: Record<string, unknown> };
+
 // Why one attempt failed, which decides what we do next.
 type Failure =
   | { kind: "busy" } // 503, 500: retry this model, then the backup model
   | { kind: "rateLimit" } // 429: go straight to the backup model
   | { kind: "fatal"; error: AppErrorException }; // stop now
 
+type Attempt<T> = { ok: true; value: T } | { ok: false; failure: Failure };
+
+// Turns one successful HTTP reply into the answer we want (or a fatal failure).
+type ReadAnswer<T> = (data: GeminiResponse, model: string) => Attempt<T>;
+type GeminiResponse = {
+  candidates?: { finishReason?: string; content?: { parts?: { text?: string; functionCall?: FunctionCall }[] } }[];
+  usageMetadata?: { candidatesTokenCount?: number };
+};
+
+// ---------- 1. structured output (/parse) ----------
+
 // Sends the prompt + input to Gemini and returns its JSON reply (already parsed).
 // `schema` is the JSON shape Gemini must answer in (see schema.ts).
 export async function askGemini(systemPrompt: string, parts: GeminiPart[], schema: object): Promise<unknown> {
+  return callGemini(
+    {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        temperature: 0, // we want the same, careful answer every time
+        responseMimeType: "application/json",
+        responseSchema: schema,
+      },
+    },
+    readJson,
+  );
+}
+
+function readJson(data: GeminiResponse, model: string): Attempt<unknown> {
+  const candidate = data.candidates?.[0];
+  const text = (candidate?.content?.parts ?? []).map((p) => p.text ?? "").join("");
+
+  if (candidate?.finishReason === "MAX_TOKENS") {
+    // The answer was too long and got cut off in the middle of the JSON.
+    console.error(`Gemini answer cut off (${model}), ${text.length} chars`);
+    return fatal("There are too many dates to read at once. Try selecting a smaller part.");
+  }
+  if (!text) {
+    // Usually blocked by a safety filter (finishReason SAFETY / PROHIBITED_CONTENT, or promptFeedback).
+    console.error(`Gemini returned no text (${model}):`, JSON.stringify(data).slice(0, 500));
+    return fatal("Gemini couldn't read any dates from this. Try selecting just the dates.");
+  }
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    console.error(`Gemini returned invalid JSON (${model}):`, text.slice(0, 500));
+    return fatal("Gemini's answer was not readable. Please try again.");
+  }
+}
+
+// ---------- 2. function calling (/edit) ----------
+
+// Sends the prompt + input with a list of functions Gemini may call. Returns the calls it
+// wants us to run (possibly several at once), plus any text it wrote.
+// Docs: https://ai.google.dev/gemini-api/docs/function-calling
+export async function askGeminiTools(
+  systemPrompt: string,
+  parts: GeminiPart[],
+  functionDeclarations: object[],
+): Promise<{ calls: FunctionCall[]; text: string }> {
+  return callGemini(
+    {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: "user", parts }],
+      tools: [{ functionDeclarations }],
+      // AUTO: Gemini calls functions when the request asks for changes, or just answers in text
+      // when it doesn't (e.g. "what's the weather?").
+      toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+      generationConfig: { temperature: 0 },
+    },
+    readToolCalls,
+  );
+}
+
+function readToolCalls(data: GeminiResponse, model: string): Attempt<{ calls: FunctionCall[]; text: string }> {
+  const candidate = data.candidates?.[0];
+  const parts = candidate?.content?.parts ?? [];
+  const calls = parts.filter((p) => p.functionCall?.name).map((p) => ({ name: p.functionCall!.name, args: p.functionCall!.args ?? {} }));
+  const text = parts.map((p) => p.text ?? "").join("").trim();
+
+  if (candidate?.finishReason === "MAX_TOKENS") {
+    console.error(`Gemini edit answer cut off (${model})`);
+    return fatal("That's too many changes at once. Try asking for fewer changes.");
+  }
+  if (calls.length === 0 && !text) {
+    console.error(`Gemini returned nothing (${model}):`, JSON.stringify(data).slice(0, 500));
+    return fatal("Gemini couldn't work out what to change. Try saying it another way.");
+  }
+  return { ok: true, value: { calls, text } };
+}
+
+// ---------- shared: retries, backup model, timeout ----------
+
+async function callGemini<T>(request: object, readAnswer: ReadAnswer<T>): Promise<T> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new AppErrorException("PARSE_FAILED", "The server is missing its Gemini API key.");
   }
-
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: "user", parts }],
-    generationConfig: {
-      temperature: 0, // we want the same, careful answer every time
-      responseMimeType: "application/json",
-      responseSchema: schema,
-    },
-  });
-
+  const body = JSON.stringify(request);
   const deadline = Date.now() + TIMEOUT_MS;
   let sawRateLimit = false;
 
@@ -61,7 +149,7 @@ export async function askGemini(systemPrompt: string, parts: GeminiPart[], schem
   const models = BACKUP_MODEL && BACKUP_MODEL !== MODEL ? [MODEL, BACKUP_MODEL] : [MODEL];
   for (const model of models) {
     for (let attempt = 1; attempt <= 2; attempt++) {
-      const result = await tryOnce(model, body, apiKey, deadline);
+      const result = await tryOnce(model, body, apiKey, deadline, readAnswer);
       if (result.ok) return result.value;
 
       const failure = result.failure;
@@ -86,13 +174,14 @@ export async function askGemini(systemPrompt: string, parts: GeminiPart[], schem
 }
 
 // One call to one model. Never throws for normal failures: returns what went wrong instead,
-// so askGemini can decide whether to retry.
-async function tryOnce(
+// so callGemini can decide whether to retry.
+async function tryOnce<T>(
   model: string,
   body: string,
   apiKey: string,
   deadline: number,
-): Promise<{ ok: true; value: unknown } | { ok: false; failure: Failure }> {
+  readAnswer: ReadAnswer<T>,
+): Promise<Attempt<T>> {
   const timeLeft = deadline - Date.now();
   if (timeLeft <= 0) throw timeoutError();
 
@@ -124,37 +213,16 @@ async function tryOnce(
     return fatal("Gemini could not read this input. Try a different file or a screenshot.");
   }
 
-  let data;
+  let data: GeminiResponse;
   try {
-    data = await res.json();
+    data = (await res.json()) as GeminiResponse;
   } catch {
     return { ok: false, failure: { kind: "busy" } }; // half-received reply: try again
   }
 
-  const candidate = data?.candidates?.[0];
-  const finishReason: string | undefined = candidate?.finishReason;
-  const text: string = (candidate?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("");
-
-  if (finishReason === "MAX_TOKENS") {
-    // The answer was too long and got cut off in the middle of the JSON.
-    console.error(`Gemini answer cut off (${model}), ${text.length} chars`);
-    return fatal("There are too many dates to read at once. Try selecting a smaller part.");
-  }
-  if (!text) {
-    // Usually blocked by a safety filter (finishReason SAFETY / PROHIBITED_CONTENT, or promptFeedback).
-    console.error(`Gemini returned no text (${model}):`, JSON.stringify(data).slice(0, 500));
-    return fatal("Gemini couldn't read any dates from this. Try selecting just the dates.");
-  }
-
   // Answer length is what makes Gemini slow, so log it.
-  console.log(`Gemini ok (${model}): ${data?.usageMetadata?.candidatesTokenCount ?? "?"} output tokens`);
-
-  try {
-    return { ok: true, value: JSON.parse(text) };
-  } catch {
-    console.error(`Gemini returned invalid JSON (${model}):`, text.slice(0, 500));
-    return fatal("Gemini's answer was not readable. Please try again.");
-  }
+  console.log(`Gemini ok (${model}): ${data.usageMetadata?.candidatesTokenCount ?? "?"} output tokens`);
+  return readAnswer(data, model);
 }
 
 // ---------- small helpers ----------

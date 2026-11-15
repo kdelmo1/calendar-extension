@@ -1,9 +1,11 @@
-// Calls our server (proxy/) and always returns a ParseResult or an AppError.
+// Calls our server (proxy/) and always returns a result or an AppError.
 // It never throws, so the caller doesn't need try/catch.
-// For the 3 demo inputs, it falls back to a saved result if the server can't answer (see backups.ts).
+//   parseOnServer: CaptureInput -> ParseResult        (POST /parse)
+//   editOnServer:  events + instruction -> EditResult (POST /edit)
+// For the 3 demo inputs, parsing falls back to a saved result if the server can't answer (see backups.ts).
 
 import { findBackup } from "./backups";
-import type { AppError, CaptureInput, ParseResult } from "./types";
+import type { AppError, CaptureInput, EditRequest, EditResult, ParseResult } from "./types";
 
 // Our Cloud Run server. To use a server on your own computer instead, create a file
 // `.env.local` in the repo root with:  VITE_PROXY_URL=http://localhost:8080
@@ -17,13 +19,15 @@ const CLIENT_TIMEOUT_MS = 40_000;
 // normally they take 2-13 s, so after 20 s we switch to the backup.
 const DEMO_TIMEOUT_MS = 20_000;
 
+// ---------- parse ----------
+
 export async function parseOnServer(input: CaptureInput): Promise<ParseResult | AppError> {
   // Is this one of the demo inputs with a saved result? (null for everything else)
   const backup = await findBackup(input);
-  if (!backup) return callServer(input, CLIENT_TIMEOUT_MS);
+  if (!backup) return callParse(input, CLIENT_TIMEOUT_MS);
 
   if (globalThis.navigator?.onLine === false) return useBackup(backup, "offline");
-  const live = await callServer(input, DEMO_TIMEOUT_MS);
+  const live = await callParse(input, DEMO_TIMEOUT_MS);
   // "No dates" is a real answer; anything else (no network, timeout, rate limit, Gemini error) -> backup.
   if (isAppError(live) && live.code !== "NO_DATES") return useBackup(backup, live.code);
   return live;
@@ -34,34 +38,53 @@ function useBackup(backup: { name: string; result: ParseResult }, reason: string
   return backup.result;
 }
 
-async function callServer(input: CaptureInput, timeoutMs: number): Promise<ParseResult | AppError> {
+async function callParse(input: CaptureInput, timeoutMs: number): Promise<ParseResult | AppError> {
+  const body = await postJson("/parse", input, timeoutMs);
+  if (isAppError(body) || isParseResult(body)) return body;
+  return { code: "PARSE_FAILED", message: "Our server sent an unexpected answer. Please try again." };
+}
+
+// ---------- edit ----------
+
+export async function editOnServer(request: EditRequest): Promise<EditResult | AppError> {
+  const body = await postJson("/edit", request, CLIENT_TIMEOUT_MS);
+  if (isAppError(body)) return body;
+  const answer = body as EditResult;
+  if (isParseResult(answer?.result) && typeof answer.summary === "string") return answer;
+  return { code: "PARSE_FAILED", message: "Our server sent an unexpected answer. Please try again." };
+}
+
+// ---------- shared ----------
+
+// POSTs JSON to our server. Returns the reply body, or an AppError if there was no usable reply.
+async function postJson(path: string, payload: unknown, timeoutMs: number): Promise<unknown> {
   let res: Response;
   try {
-    res = await fetch(`${PROXY_URL}/parse`, {
+    res = await fetch(`${PROXY_URL}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     if (err instanceof Error && err.name === "TimeoutError") {
-      return { code: "TIMEOUT", message: "Reading the dates took too long. Try selecting a smaller part, or try again." };
+      const error: AppError = { code: "TIMEOUT", message: "That took too long. Try selecting a smaller part, or try again." };
+      return error;
     }
     // Offline, server down, or blocked by CORS.
-    return { code: "PARSE_FAILED", message: "Couldn't reach our server. Check your internet connection and try again." };
+    const error: AppError = { code: "PARSE_FAILED", message: "Couldn't reach our server. Check your internet connection and try again." };
+    return error;
   }
 
-  let body: unknown;
   try {
-    body = await res.json();
+    const body = await res.json();
+    // The server sends AppErrors in the right shape; a non-OK reply without one is unexpected.
+    if (!res.ok && !isAppError(body)) throw new Error("bad error body");
+    return body;
   } catch {
-    return { code: "PARSE_FAILED", message: "Our server sent an unreadable answer. Please try again." };
+    const error: AppError = { code: "PARSE_FAILED", message: "Our server sent an unreadable answer. Please try again." };
+    return error;
   }
-
-  // The server already sends AppErrors in the right shape; pass them straight on.
-  if (isAppError(body)) return body;
-  if (res.ok && isParseResult(body)) return body;
-  return { code: "PARSE_FAILED", message: "Our server sent an unexpected answer. Please try again." };
 }
 
 function isAppError(x: unknown): x is AppError {

@@ -82,6 +82,29 @@ function answer(scenario: string, model: string, res: ServerResponse, inputText:
           recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TU", sourceText: "Lectures: Tuesdays, 5:20 PM – 6:55 PM", confidence: 0.95 },
       ],
     }));
+    // ----- /edit (function calling): Gemini answers with function calls instead of JSON -----
+    case "edit-ok": {
+      const call = (name: string, args: object) => ({ functionCall: { name, args } });
+      return send(200, { candidates: [{ finishReason: "STOP", content: { parts: [
+        call("update_events", { updates: [
+          { id: "e1", start: "2027-03-16" }, // only a new start: the end should move with it
+          { id: "e3", start: "2027-02-30" }, // impossible date: skipped
+          { id: "e99", title: "ghost" }, // no such event: ignored
+        ] }),
+        call("delete_events", { ids: ["e2", "e2", "e42"] }), // duplicate + unknown id: deleted once
+        call("add_events", { events: [{ title: "Study group", allDay: false, start: "2027-01-07T19:00", end: "2027-01-07T21:00",
+          location: "McHenry Library", recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TH;UNTIL=20270311" }] }),
+      ] } }] });
+    }
+    case "edit-filter": {
+      const call = (name: string, args: object) => ({ functionCall: { name, args } });
+      return send(200, { candidates: [{ finishReason: "STOP", content: { parts: [
+        call("delete_events", { startsBefore: "2027-03-01", categories: ["holiday"] }), // holidays before March
+        call("delete_events", { startsBefore: "2027-03-01", startsAfter: "2027-03-20" }), // outside Mar 1-20
+      ] } }] });
+    }
+    case "edit-question":
+      return send(200, { candidates: [{ finishReason: "STOP", content: { parts: [{ text: "Which midterm do you mean?" }] } }] });
     case "repeat-and-dated": {
       // Tue/Thu lectures in Fall 2026: Sep 24 (Thu), Sep 29 (Tue), Oct 1 (Thu), and an exam row on Tue Oct 6
       const row = (start: string, title: string, category = "class") =>
@@ -163,8 +186,20 @@ type Test = {
   status: number;
   code?: AppError["code"];
   models?: string[]; // which models should have been called, in order
-  check?: (r: ParseResult) => string | null; // extra check on a successful result
+  path?: string; // default "/parse"
+  body?: object; // default: a text capture with the scenario in it
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  check?: (r: any) => string | null; // extra check on a successful result
 };
+
+// A small event list for the /edit tests (ids are fixed so the checks can find them).
+const editEvent = (id: string, title: string, start: string, end: string, category: string, confidence = 0.95) =>
+  ({ id, title, allDay: true, start, end, recurrence: null, location: null, description: null, category, confidence, sourceText: title });
+const editEvents = [
+  editEvent("id-finals", "Final Examinations", "2027-03-15", "2027-03-19", "exam", 0.6),
+  editEvent("id-presidents", "Presidents Day", "2027-02-15", "2027-02-15", "holiday"),
+  editEvent("id-grades", "Grades Due", "2027-03-23", "2027-03-23", "deadline"),
+];
 
 const M = "fake-main";
 const B = "fake-backup";
@@ -187,7 +222,7 @@ const tests: Test[] = [
     scenario: "some-bad-dates",
     what: "bad date dropped, bad end fixed, bad time zone fixed",
     status: 200,
-    check: (r) => {
+    check: (r: ParseResult) => {
       if (r.events.length !== 2) return `expected 2 events, got ${r.events.length}`;
       if (r.events[1].end !== "2027-01-08T19:00:00") return `end should be fixed to 19:00, got ${r.events[1].end}`;
       if (r.timeZone !== "America/Los_Angeles") return `timeZone should be America/Los_Angeles, got ${r.timeZone}`;
@@ -199,7 +234,7 @@ const tests: Test[] = [
     text: "SCENARIO:rrule (Winter 2027)", // has a year, so only the undated repeat should be flagged
     what: "repeat rule: first meeting moved to Tue, UNTIL made UTC, junk rule dropped, undated repeat flagged",
     status: 200,
-    check: (r) => {
+    check: (r: ParseResult) => {
       const [lectures, club, seminar] = r.events;
       if (seminar.confidence >= 0.7) return `undated repeating event should be flagged, got ${seminar.confidence}`;
       if (lectures.confidence < 0.7) return `dated repeating event should not be flagged, got ${lectures.confidence}`;
@@ -217,7 +252,7 @@ const tests: Test[] = [
     text: "SCENARIO:repeat-and-dated (Fall 2026)",
     what: "repeating lecture + 3 dated lecture rows -> repeat dropped, rows get its time",
     status: 200,
-    check: (r) => {
+    check: (r: ParseResult) => {
       if (r.events.some((e) => e.recurrence)) return "the repeating lecture should be dropped";
       if (r.events.length !== 4) return `expected 3 lectures + 1 exam, got ${r.events.length}`;
       const lectures = r.events.filter((e) => e.category === "class");
@@ -230,13 +265,62 @@ const tests: Test[] = [
     },
   },
   {
+    scenario: "edit-ok",
+    path: "/edit",
+    body: { events: editEvents, instruction: "SCENARIO:edit-ok", calendarName: "UCSC Winter 2027" },
+    what: "/edit: update (end moves too), delete, add repeating; bad date + unknown ids skipped",
+    status: 200,
+    models: [M],
+    check: (a: { result: ParseResult; summary: string }) => {
+      const ev = a.result.events;
+      if (ev.length !== 3) return `expected 3 events (1 deleted, 1 added), got ${ev.length}`;
+      const finals = ev.find((e) => e.id === "id-finals");
+      if (finals?.start !== "2027-03-16" || finals.end !== "2027-03-20") return `finals should be 03-16..03-20, got ${finals?.start}..${finals?.end}`;
+      if (finals.confidence !== 0.95) return `edited event should no longer be flagged, got ${finals.confidence}`;
+      if (ev.some((e) => e.id === "id-presidents")) return "Presidents Day should be deleted";
+      if (ev.find((e) => e.id === "id-grades")?.start !== "2027-03-23") return "Grades Due should be unchanged";
+      const added = ev.find((e) => e.title === "Study group");
+      if (added?.recurrence !== "RRULE:FREQ=WEEKLY;BYDAY=TH;UNTIL=20270312T075959Z") return `added event rule: ${added?.recurrence}`;
+      if (a.result.calendarName !== "UCSC Winter 2027") return `calendarName lost: ${a.result.calendarName}`;
+      if (!/Updated 1 event.*Deleted 1 event.*Added 1 event.*Skipped/.test(a.summary)) return `summary: ${a.summary}`;
+      return null;
+    },
+  },
+  {
+    scenario: "edit-filter",
+    path: "/edit",
+    body: { events: editEvents, instruction: "SCENARIO:edit-filter" },
+    what: "/edit: delete by filters (holidays before Mar 1; outside Mar 1-20) -> only finals left",
+    status: 200,
+    check: (a: { result: ParseResult; summary: string }) =>
+      a.result.events.map((e) => e.id).join(",") === "id-finals" ? null : `left: ${a.result.events.map((e) => e.title).join(", ")}`,
+  },
+  {
+    scenario: "edit-question",
+    path: "/edit",
+    body: { events: editEvents, instruction: "SCENARIO:edit-question move the midterm" },
+    what: "/edit: Gemini asks a question instead -> nothing changes, its question is the summary",
+    status: 200,
+    check: (a: { result: ParseResult; summary: string }) =>
+      a.result.events.length === 3 && a.summary === "Which midterm do you mean?" ? null : `got ${a.result.events.length} events, "${a.summary}"`,
+  },
+  {
+    scenario: "edit-empty",
+    path: "/edit",
+    body: { events: editEvents, instruction: "   " },
+    what: "/edit: empty instruction -> PARSE_FAILED, Gemini not called",
+    status: 400,
+    code: "PARSE_FAILED",
+    models: [],
+  },
+  {
     scenario: "big",
     // 100 lines: big enough to be split into 3 parallel parts
     text: ["SCENARIO:big", ...Array.from({ length: 99 }, (_, i) => `Row ${i + 2} | Jan. 4, 2027`)].join("\n"),
     what: "100-line input -> 3 parallel parts, merged, no duplicates",
     status: 200,
     models: [M, M, M],
-    check: (r) => {
+    check: (r: ParseResult) => {
       if (r.events.length !== 100) return `expected 100 events (one per line), got ${r.events.length}`;
       const row50 = r.events.find((e) => e.title === "Row 50");
       if (row50?.sourceText !== "Row 50 | Jan. 4, 2027") return `sourceText for line 50 was "${row50?.sourceText}"`;
@@ -248,10 +332,10 @@ const tests: Test[] = [
 let passed = 0;
 for (const t of tests) {
   const started = Date.now();
-  const res = await fetch(`${PROXY}/parse`, {
+  const res = await fetch(`${PROXY}${t.path ?? "/parse"}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "text", text: t.text ?? `SCENARIO:${t.scenario}` }),
+    body: JSON.stringify(t.body ?? { kind: "text", text: t.text ?? `SCENARIO:${t.scenario}` }),
   });
   const body = await res.json();
   const secs = ((Date.now() - started) / 1000).toFixed(1);
@@ -269,7 +353,8 @@ for (const t of tests) {
   if (t.scenario === "never-answers" && Number(secs) > TIMEOUT_MS / 1000 + 1) problems.push(`took ${secs} s`);
 
   if (problems.length === 0) passed++;
-  const shown = res.ok ? `${(body as ParseResult).events.length} events` : `${body.code}: "${body.message}"`;
+  const events = (body.result ?? body).events;
+  const shown = res.ok ? `${events?.length} events${body.summary ? ` | "${body.summary}"` : ""}` : `${body.code}: "${body.message}"`;
   console.log(`${problems.length ? "FAIL" : "PASS"}  ${t.what}  (${secs} s)  -> ${shown}`);
   for (const p of problems) console.log(`      ✗ ${p}`);
 }

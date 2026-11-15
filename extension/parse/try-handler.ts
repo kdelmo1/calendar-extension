@@ -153,4 +153,32 @@ globalThis.fetch = realFetch;
   globalThis.fetch = realFetch;
 }
 
+// 15-17. EDIT_REQUEST -> EDIT_RESULT (fake server replies, so this works before /edit is deployed)
+{
+  const events = [{ id: "a", title: "Midterm", allDay: true, start: "2027-02-10", end: "2027-02-10", recurrence: null,
+    location: null, description: null, category: "exam", confidence: 0.95, sourceText: "Midterm Feb 10" }];
+  const editRequest = { type: "EDIT_REQUEST", payload: { events, instruction: "Move the midterm to Feb 12" } };
+  const reply = (status: number, body: unknown): typeof fetch => async () => new Response(JSON.stringify(body), { status });
+  const moved = { result: { calendarName: "Test", timeZone: "America/Los_Angeles", events: [{ ...events[0], start: "2027-02-12", end: "2027-02-12" }] },
+    summary: 'Updated 1 event: "Midterm".' };
+  const edits: [string, typeof fetch, (p: Record<string, unknown>) => string | null][] = [
+    ["EDIT_REQUEST -> EDIT_RESULT with result + summary", reply(200, moved),
+      (p) => ((p?.result as { events: { start: string }[] })?.events[0].start === "2027-02-12" && p.summary ? null : `got ${JSON.stringify(p)}`)],
+    ["EDIT_REQUEST, server down -> PARSE_FAILED", async () => { throw new TypeError("Failed to fetch"); },
+      (p) => (p?.code === "PARSE_FAILED" ? null : `got ${JSON.stringify(p)}`)],
+    ["EDIT_REQUEST, odd reply -> PARSE_FAILED", reply(200, { hello: "world" }),
+      (p) => (p?.code === "PARSE_FAILED" ? null : `got ${JSON.stringify(p)}`)],
+  ];
+  for (const [name, fakeFetch, expect] of edits) {
+    globalThis.fetch = fakeFetch;
+    sentMessages.length = 0;
+    const { response } = await simulate(editRequest);
+    const msg = sentMessages.find((m) => m.type === "EDIT_RESULT");
+    const p = msg?.payload as Record<string, unknown>;
+    report(name, !msg ? "no EDIT_RESULT sent" : response !== msg.payload ? "sendResponse got something different" : expect(p),
+      (p?.summary as string) ?? (p?.code as string));
+  }
+  globalThis.fetch = realFetch;
+}
+
 console.log(`\n${passed}/${total} cases passed.`);

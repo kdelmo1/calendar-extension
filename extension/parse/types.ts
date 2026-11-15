@@ -28,6 +28,18 @@ export type CalendarEvent = {
 
 export type ParseResult = { calendarName: string; timeZone: string; events: CalendarEvent[] };
 
+// Lane 4 -> Lane 2: EDIT_REQUEST payload. calendarName/timeZone are optional extras
+// (send them if you have them, so the result keeps them).
+export type EditRequest = {
+  events: CalendarEvent[];
+  instruction: string;
+  calendarName?: string;
+  timeZone?: string;
+};
+
+// Lane 2 -> Lane 4: EDIT_RESULT payload (or an AppError).
+export type EditResult = { result: ParseResult; summary: string };
+
 export type AppError = {
   code:
     | "AUTH_DENIED"

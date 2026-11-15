@@ -10,11 +10,11 @@ import { buildSchema } from "./schema.js";
 import { buildSystemPrompt } from "./prompt.js";
 import type { CalendarEvent, CaptureInput, Category, ParseResult } from "./types.js";
 
-const DEFAULT_TIME_ZONE = "America/Los_Angeles";
-const CATEGORIES: Category[] = ["deadline", "holiday", "exam", "class", "event"];
+export const DEFAULT_TIME_ZONE = "America/Los_Angeles";
+export const CATEGORIES: Category[] = ["deadline", "holiday", "exam", "class", "event"];
 
 // One event the way Gemini writes it (see schema.ts), before we tidy it up.
-type GeminiEvent = Partial<CalendarEvent> & { lines?: number[]; yearSource?: string; unsure?: boolean };
+export type GeminiEvent = Partial<CalendarEvent> & { lines?: number[]; yearSource?: string; unsure?: boolean };
 
 export async function parseCapture(input: CaptureInput): Promise<ParseResult> {
   // text, file or image -> Gemini message (see inputs.ts). `lines` is set for text inputs.
@@ -156,7 +156,7 @@ function sourceTextFor(e: GeminiEvent, lines: string[] | null): string {
 // Checks and tidies one event's dates. Returns null if the start date is unusable.
 //   all-day: "YYYY-MM-DD"            timed: "YYYY-MM-DDTHH:MM:SS" (local time, no offset)
 // Rules: a bad or too-early end becomes the start (all-day) or start + 1 hour (timed).
-function fixTimes(e: GeminiEvent): Pick<CalendarEvent, "allDay" | "start" | "end"> | null {
+export function fixTimes(e: GeminiEvent): Pick<CalendarEvent, "allDay" | "start" | "end"> | null {
   const start = String(e.start ?? "").trim();
   const end = String(e.end ?? "").trim();
   const startDate = start.slice(0, 10);
@@ -195,7 +195,7 @@ function addOneHour(localDateTime: string): string {
 }
 
 // True for real IANA names like "America/New_York"; false for "PST", "", or made-up names.
-function isRealTimeZone(tz: string | undefined): boolean {
+export function isRealTimeZone(tz: string | undefined): boolean {
   if (!tz?.includes("/")) return false;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz.trim() });
@@ -220,6 +220,6 @@ function honestConfidence(e: GeminiEvent): number {
 }
 
 // Today's date as YYYY-MM-DD in a given time zone.
-function todayIn(timeZone: string): string {
+export function todayIn(timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
 }

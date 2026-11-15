@@ -20,6 +20,7 @@ Optional in `.env`: `GEMINI_MODEL=gemini-3.5-flash` to try a different model.
 |--------|-----------|----------------|----------------|---------------------------|
 | GET    | `/health` | –              | `{ "ok": true }` | –                       |
 | POST   | `/parse`  | `CaptureInput` | `ParseResult`  | `AppError { code, message }` |
+| POST   | `/edit`   | `{ events, instruction, calendarName?, timeZone? }` | `{ result: ParseResult, summary }` | `AppError` |
 
 Quick test with curl:
 
@@ -96,6 +97,29 @@ stays a one-time event), the first meeting is moved onto one of the rule's days,
 for timed events is turned into the UTC time Google requires (23:59:59 on the last day in the
 event's time zone, daylight saving time included). Holidays inside a repeating series are
 not removed (no EXDATE); the dated "no class" events still show them.
+
+## Plain-English edits (POST /edit)
+
+`{ events, instruction, calendarName?, timeZone? }` → `{ result: ParseResult, summary }`.
+Example: "move the final exams to March 16–20", "delete all the holidays", "add a study group
+every Thursday 7–9 PM from Jan 7 to Mar 11". Usually ~1 s.
+
+How it works (`src/edit.ts`, Gemini **function calling**):
+1. The events go to Gemini as short lines with short ids (`e1 | 2027-03-15 → 2027-03-19 | all-day | exam | Final Examinations`).
+2. Gemini answers with calls to `update_events`, `delete_events`, `add_events` (several at once if needed).
+   `delete_events` also takes filters (`startsBefore`, `startsAfter`, `categories`), so a bulk
+   delete like "everything before February" is applied exactly by our code, not by Gemini listing ids.
+3. Our code applies the calls with the same checks as `/parse` (real dates, RRULE cleanup), moves
+   the end along with a moved start, ignores unknown ids, skips invalid dates, and writes the summary
+   from what actually changed. Edited events are no longer flagged (the user just confirmed them).
+4. If the instruction isn't a change request ("what's the weather?") or is unclear, Gemini calls no
+   function; nothing changes and its one-sentence reply is the summary.
+
+```bash
+npm run try:edit
+```
+
+8 real edits on the 18-event fixture and the 153-event UCSC result, each checked in code.
 
 ## Errors
 
@@ -213,6 +237,8 @@ Give Lane 1 the URL for `manifest.json`:
 | `src/inputs.ts`       | Text / files / images / image URLs → Gemini message  |
 | `src/chunks.ts`       | Splits big text inputs into parallel pieces, merges answers |
 | `src/recurrence.ts`   | Checks and fixes repeating-event rules (RRULEs)      |
+| `src/edit.ts`         | Plain-English edits with Gemini function calling     |
+| `scripts/try-edit.ts` | Real edit cases (`npm run try:edit`)                 |
 | `src/gemini.ts`       | The one place that calls the Gemini REST API         |
 | `src/prompt.ts`       | Rules we give Gemini (edit this to improve accuracy) |
 | `src/schema.ts`       | JSON shape Gemini must reply with                    |

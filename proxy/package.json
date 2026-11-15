@@ -13,7 +13,8 @@
     "try:prompt": "tsx scripts/try-prompt.ts",
     "try:errors": "tsx scripts/try-errors.ts",
     "try:real": "tsx scripts/try-real.ts",
-    "save:demo": "tsx scripts/save-demo-backups.ts"
+    "save:demo": "tsx scripts/save-demo-backups.ts",
+    "try:edit": "tsx scripts/try-edit.ts"
   },
   "engines": {
     "node": ">=20"
