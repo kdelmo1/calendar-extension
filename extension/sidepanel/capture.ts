@@ -1,0 +1,1 @@
+export { fileToCaptureInput, textToCaptureInput } from "../capture";
