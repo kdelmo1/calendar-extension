@@ -273,3 +273,31 @@ export async function undoCalendar(token: string, calendarId: string): Promise<{
     throw { code: "CALENDAR_ERROR", message: error.message || "Unknown error deleting calendar." };
   }
 }
+
+/**
+ * Optional: Makes a calendar public so anyone with the link can follow/view it.
+ * Uses Google Calendar ACL API (role: "reader", scope: { type: "default" })
+ */
+export async function makeCalendarPublic(token: string, calendarId: string): Promise<void> {
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/acl`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      role: "reader",
+      scope: {
+        type: "default"
+      }
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.warn("Could not make calendar public (non-fatal):", errText);
+    // We log a warning instead of crashing, since public sharing is optional
+  }
+}
