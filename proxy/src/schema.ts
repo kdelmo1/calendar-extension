@@ -31,9 +31,20 @@ const eventSchema = {
       type: "STRING",
       enum: ["deadline", "holiday", "exam", "class", "event"],
     },
+    // These two are only for us: parse.ts uses them to keep confidence honest,
+    // then drops them (they are NOT part of the team's CalendarEvent).
+    yearSource: {
+      type: "STRING",
+      enum: ["written", "context", "guessed"],
+      description: "Where the year came from",
+    },
+    unsure: {
+      type: "BOOLEAN",
+      description: "true if tentative/TBA/approximate, ambiguous, or hard to read",
+    },
     confidence: {
       type: "NUMBER",
-      description: "0 to 1: how sure you are that the date, title and category are right",
+      description: "0 to 1: how likely the date, time and title are all correct",
     },
     sourceText: {
       type: "STRING",
@@ -41,12 +52,14 @@ const eventSchema = {
     },
   },
   required: [
-    "title", "allDay", "start", "end", "recurrence",
-    "location", "description", "category", "confidence", "sourceText",
+    "title", "allDay", "start", "end", "recurrence", "location", "description",
+    "category", "yearSource", "unsure", "confidence", "sourceText",
   ],
+  // Gemini writes fields in this order. sourceText first (read before deciding),
+  // yearSource/unsure just before confidence (so it thinks about them first).
   propertyOrdering: [
     "sourceText", "title", "allDay", "start", "end", "recurrence",
-    "location", "description", "category", "confidence",
+    "location", "description", "category", "yearSource", "unsure", "confidence",
   ],
 };
 

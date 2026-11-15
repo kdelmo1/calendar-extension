@@ -62,6 +62,26 @@ What each `CaptureInput.kind` does:
 Files must be under 14 MB. If `mimeType` is missing, the server looks at the
 file's first bytes to work out the type.
 
+## Check the prompt rules
+
+```bash
+npm run try:prompt
+```
+
+Runs the small tricky inputs in `fixtures/inputs/prompt-cases.json`, one or more per rule
+(year guessing, time zones, ranges, "no class" → holiday, honest confidence, no dates → `NO_DATES`).
+**Run this after every change to `src/prompt.ts`.** To add a case, copy one in that file.
+
+How confidence works: Gemini also tells us where each year came from (`written` / `context` /
+`guessed`) and whether the date is `unsure` (tentative, TBA, ambiguous). `parse.ts` caps
+confidence at 0.6 for guessed or unsure dates and 0.9 for years from context, so those get
+flagged for review (< 0.7). If a text input has no year anywhere, every date counts as guessed.
+
+## Free-tier rate limit
+
+The free tier allows **15 requests per minute per model**, shared by everyone using the same key.
+Going over gives HTTP 429. Don't run two `try:` scripts back to back; wait a minute between them.
+
 ## Files
 
 | File                  | What it does                                         |
@@ -76,3 +96,4 @@ file's first bytes to work out the type.
 | `src/errors.ts`       | `AppErrorException` → `AppError` replies             |
 | `scripts/try-ucsc.ts` | Accuracy check against the fixture                   |
 | `scripts/try-files.ts`| Checks PDFs, images, screenshots, URLs, .md files    |
+| `scripts/try-prompt.ts`| Checks each prompt rule with small tricky inputs    |
