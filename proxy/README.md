@@ -77,6 +77,37 @@ How confidence works: Gemini also tells us where each year came from (`written` 
 confidence at 0.6 for guessed or unsure dates and 0.9 for years from context, so those get
 flagged for review (< 0.7). If a text input has no year anywhere, every date counts as guessed.
 
+## Errors
+
+Every failure comes back as an `AppError` `{ code, message }`. The message is plain
+English for the side panel to show.
+
+| What went wrong                                   | code           | HTTP |
+|---------------------------------------------------|----------------|------|
+| No answer within 30 s (including retries)         | `TIMEOUT`      | 504  |
+| Rate limit (429) on both models                   | `RATE_LIMIT`   | 429  |
+| Gemini busy (503/500) on both models after retry  | `RATE_LIMIT`   | 429  |
+| No events found / nothing captured                | `NO_DATES`     | 422 / 400 |
+| Junk or cut-off answer, every date unusable, safety block | `PARSE_FAILED` | 502 |
+| Bad file / bad request (400), bad API key (401/403) | `PARSE_FAILED` | 502 |
+
+Retries: if Gemini is busy (503) we wait 0.5 s and try once more, then switch to the
+backup model (`GEMINI_BACKUP_MODEL`, default `gemini-3.5-flash`). On a 429 we switch to
+the backup model right away, because each model has its own per-minute limit.
+Errors that would fail the same way again (400, bad key, junk) are not retried.
+
+Events with impossible dates (e.g. `2027-02-30`) are dropped; an end before the start
+is fixed; an unknown time zone becomes `America/Los_Angeles`.
+
+Test all of this without using any quota (a fake Gemini runs on your computer):
+
+```bash
+npm run try:errors
+```
+
+Settings in `.env` (all optional): `GEMINI_MODEL`, `GEMINI_BACKUP_MODEL`,
+`PARSE_TIMEOUT_MS` (default 30000).
+
 ## Free-tier rate limit
 
 The free tier allows **15 requests per minute per model**, shared by everyone using the same key.
@@ -97,3 +128,4 @@ Going over gives HTTP 429. Don't run two `try:` scripts back to back; wait a min
 | `scripts/try-ucsc.ts` | Accuracy check against the fixture                   |
 | `scripts/try-files.ts`| Checks PDFs, images, screenshots, URLs, .md files    |
 | `scripts/try-prompt.ts`| Checks each prompt rule with small tricky inputs    |
+| `scripts/try-errors.ts`| Checks every failure using a fake Gemini (no quota) |
