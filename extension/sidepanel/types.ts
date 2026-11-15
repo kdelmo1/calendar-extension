@@ -1,0 +1,31 @@
+export type CalendarEvent = {
+  id: string;
+  title: string;
+  allDay: boolean;
+  start: string; // "YYYY-MM-DD" if allDay, else ISO date-time
+  end: string; // INCLUSIVE end
+  recurrence: string | null;
+  location: string | null;
+  description: string | null;
+  category: "deadline" | "holiday" | "exam" | "class" | "event";
+  confidence: number; // 0-1; below 0.7 needs review
+  sourceText: string;
+};
+
+export type ParseResult = {
+  calendarName: string;
+  timeZone: string;
+  events: CalendarEvent[];
+};
+
+export type AppError = {
+  code:
+    | "AUTH_DENIED"
+    | "NO_DATES"
+    | "RATE_LIMIT"
+    | "TIMEOUT"
+    | "PARSE_FAILED"
+    | "PARTIAL_WRITE"
+    | "CALENDAR_ERROR";
+  message: string;
+};
