@@ -29,3 +29,16 @@ export type AppError = {
     | "CALENDAR_ERROR";
   message: string;
 };
+
+export type CaptureInput = {
+  kind: "text" | "file" | "image" | "screenshot";
+  text?: string;
+  fileBase64?: string;
+  imageUrl?: string;
+  mimeType?: string;
+  pageUrl?: string;
+  pageTitle?: string;
+};
+
+// Every chrome.runtime message looks like this.
+export type Message = { type: string; payload?: unknown };
