@@ -7,12 +7,22 @@ type Props = {
 };
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-const OK_EXTENSIONS = [".pdf", ".txt", ".md"];
+// Lane 1 supports PDF, TXT, MD, PNG, JPEG and WebP.
+const OK_EXTENSIONS = [
+  ".pdf",
+  ".txt",
+  ".md",
+  ".markdown",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+];
 
 // Is this file one we can read?
 function isSupported(file: File): boolean {
   const name = file.name.toLowerCase();
-  return file.type.startsWith("image/") || OK_EXTENSIONS.some((ext) => name.endsWith(ext));
+  return OK_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
 export default function InputScreen({ onSubmit }: Props) {
@@ -32,7 +42,9 @@ export default function InputScreen({ onSubmit }: Props) {
     if (!file) return;
 
     if (!isSupported(file)) {
-      setProblem("That file type isn't supported. Use a PDF, TXT, MD or image file.");
+      setProblem(
+        "That file type isn't supported. Use a PDF, TXT, MD, PNG, JPEG or WebP file."
+      );
       return;
     }
     if (file.size > MAX_BYTES) {
@@ -41,7 +53,13 @@ export default function InputScreen({ onSubmit }: Props) {
     }
     try {
       setProblem("");
-      onSubmit(await fileToCaptureInput(file));
+      const result = await fileToCaptureInput(file);
+      // Lane 1 returns an AppError when it can't read the file.
+      if ("code" in result) {
+        setProblem(result.message);
+        return;
+      }
+      onSubmit(result);
     } catch {
       setProblem("Couldn't read that file. Try another one.");
     }
@@ -49,12 +67,14 @@ export default function InputScreen({ onSubmit }: Props) {
 
   // User pressed "Find dates" for pasted text.
   function handlePaste() {
-    if (!text.trim()) {
+    const result = textToCaptureInput(text);
+    // Lane 1 returns an AppError for empty text.
+    if ("code" in result) {
       setProblem("Paste some text with dates first.");
       return;
     }
     setProblem("");
-    onSubmit(textToCaptureInput(text));
+    onSubmit(result);
   }
 
   return (
@@ -75,23 +95,25 @@ export default function InputScreen({ onSubmit }: Props) {
       )}
 
       <section aria-labelledby="upload-heading" style={{ marginBottom: 16 }}>
-        <h2 id="upload-heading" style={{ fontSize: 16 }}>Upload a file</h2>
-        <label htmlFor="file-input" style={{ display: "block" }}>
-          PDF, TXT, MD or image (up to 10 MB)
+        <h2 id="upload-heading" style={{ fontSize: 16 }}>
+          Upload a file
+        </h2>
+        <label htmlFor="file-input">
+          PDF, TXT, MD, PNG, JPEG or WebP (up to 10 MB)
         </label>
         <input
           id="file-input"
           type="file"
-          accept=".pdf,.txt,.md,image/*"
+          accept=".pdf,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp"
           onChange={handleFile}
         />
       </section>
 
       <section aria-labelledby="paste-heading">
-        <h2 id="paste-heading" style={{ fontSize: 16 }}>Or paste text</h2>
-        <label htmlFor="paste-input" style={{ display: "block" }}>
-          Text that contains dates
-        </label>
+        <h2 id="paste-heading" style={{ fontSize: 16 }}>
+          Or paste text
+        </h2>
+        <label htmlFor="paste-input">Text that contains dates</label>
         <textarea
           id="paste-input"
           rows={6}
@@ -101,8 +123,9 @@ export default function InputScreen({ onSubmit }: Props) {
         />
         <button
           type="button"
+          className="primary"
           onClick={handlePaste}
-          style={{ marginTop: 8, padding: "8px 12px" }}
+          style={{ marginTop: 8 }}
         >
           Find dates
         </button>
