@@ -1,24 +1,28 @@
 # Calibrate UI assets and Lane 4 handoff
 
-Lane 1 supplies `extension/sidepanel/GlobalStyles.tsx`, branding in the manifest/menu, and these assets. Follow-up polish styles `InputScreen.tsx`, `EventCard.tsx`, and `ReviewScreen.tsx`. At the user's request, `App.tsx` now also mounts the shared brand header and theme toggle; Belinda's navigation and error recovery work is not implemented here. All capture, parser, Calendar, runtime message contracts, and review handlers are unchanged.
+Lane 1 supplies `extension/sidepanel/GlobalStyles.tsx`, branding in the manifest/menu, and these assets. Follow-up polish styles the input, review, success, error, and event-list components. At the user's request, the visible brand header was removed; `App.tsx` mounts only the theme toggle, aligned with **Add dates** on the input screen. Belinda's navigation and error recovery work is not implemented here. Capture, parser, Calendar, and runtime message contracts are unchanged.
 
 The follow-up light accent is `#1A73E8` with white button text (4.51:1); dark uses `#8AB4F8` with black button text (9.96:1). Fields have 16px corners. Start/end dates sit side-by-side when space allows and stack below 340px. The existing direct-child review heading is visually hidden, preserving its screen-reader/focus role without editing `App.tsx`.
 
 ## Header integration (Lane 4)
 
-Keep the existing `<GlobalStyles />` mounted once. It applies the theme, follows the system until an explicit choice is saved, and listens for storage changes. `App.tsx` now includes this header once; extend it for navigation rather than adding a second header:
+Keep the existing `<GlobalStyles />` mounted once. It applies the theme, follows the system until an explicit choice is saved, and listens for storage changes. `App.tsx` now includes this toolbar once; extend it for navigation rather than adding a second header:
 
 ```tsx
-import { CalibrateLogo, ThemeToggle } from "./GlobalStyles";
+import { ThemeToggle } from "./GlobalStyles";
 
-<header className="app-header">
-  <CalibrateLogo />
-  <span className="brand-name">Calibrate</span>
+<div className={screen.name === "input" ? "theme-toolbar theme-toolbar-input" : "theme-toolbar"}>
   <ThemeToggle />
-</header>
+</div>
 ```
 
 `ThemeToggle` has an accessible action label and uses the bundled outlined Material sun/moon symbols. `useTheme()` also exposes `{ theme, toggleTheme }` if you need to render your own header button. The choice is stored in `chrome.storage.local.calibrateTheme` as `light` or `dark`; there are no new runtime messages. Removing that key restores system-following mode. The logo uses the PNG alpha as a mask so its blue automatically matches the active theme.
+
+## Success and error details
+
+`App` keeps the exact submitted `ParseResult` in a ref for each write attempt and attaches it to its internal success-screen state. `SuccessScreen` shows the calendar name, returned added count, and submitted events minus the failed IDs. If the event count cannot be reconciled, it links to the calendar instead of guessing names. No fields were added to `WriteResult` or any runtime message.
+
+`ErrorScreen` displays the provided `AppError.message` verbatim, including Kyle's event/time validation reason. Per-event reasons are shown whenever `WriteResult.failed` supplies them. The current Calendar writer throws a summary-only `PARTIAL_WRITE` AppError, so this UI cannot recover individual failure reasons or the successful calendar ID for that case; that would require a separately coordinated Lane 3 contract change.
 
 ## Tokens
 

@@ -271,6 +271,35 @@ export const css = `
   .paste-area textarea { display: block; width: 100%; }
   .paste-area .primary { width: 100%; margin-top: var(--space-2); }
   .input-problem { margin: var(--space-0); color: var(--text); }
+  .result-screen { display: grid; min-width: 0; gap: var(--space-3); }
+  .result-screen h1 { margin: var(--space-0); }
+  .result-screen h1[tabindex="-1"]:focus { outline: none; }
+  .result-count { margin: var(--space-1) var(--space-0) var(--space-0); color: var(--text-secondary); }
+  .calendar-link { color: var(--text); text-decoration: none; }
+  .calendar-link:hover { color: var(--accent); text-decoration: underline; }
+  .added-event-list, .failure-list { list-style: none; padding: var(--space-0); margin: var(--space-0); }
+  .added-event-list li {
+    display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-0);
+    border-bottom: var(--border-width) solid var(--divider);
+  }
+  .added-event-list li:first-child { padding-top: var(--space-0); }
+  .event-title { display: block; font-weight: var(--font-medium); overflow-wrap: anywhere; }
+  .event-timezone { margin: var(--space-2) var(--space-0) var(--space-0); }
+  .result-issue {
+    min-width: 0; border: var(--border-width) solid var(--divider);
+    border-radius: var(--radius-card); padding: var(--space-2); background: var(--surface);
+  }
+  .result-issue h2 { font-size: var(--font-body); margin: var(--space-0) var(--space-0) var(--space-1); }
+  .error-reason, .failure-list p { margin: var(--space-0); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .failure-list li + li { margin-top: var(--space-2); }
+  .failure-list p { margin-top: var(--space-1); font-size: var(--font-secondary); color: var(--text-secondary); }
+  .result-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+  .calendar-open {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: var(--control-height); padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-pill); text-align: center; text-decoration: none;
+    font-weight: var(--font-medium);
+  }
   @keyframes calibrate-fade-in { from { opacity: 0; } to { opacity: 1; } }
   .sr-only {
     position: absolute; width: var(--border-width); height: var(--border-width);

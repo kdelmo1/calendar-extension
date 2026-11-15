@@ -14,7 +14,7 @@ const COPY: Record<AppError["code"], { title: string; button: string }> = {
   TIMEOUT: { title: "That took too long", button: "Retry" },
   AUTH_DENIED: { title: "Sign-in needed", button: "Sign in again" },
   PARTIAL_WRITE: { title: "Some events weren't added", button: "Retry the failed events" },
-  CALENDAR_ERROR: { title: "Google Calendar problem", button: "Retry" },
+  CALENDAR_ERROR: { title: "Couldn't add events", button: "Retry" },
 };
 
 export default function ErrorScreen({ error, onRecover }: Props) {
@@ -27,14 +27,17 @@ export default function ErrorScreen({ error, onRecover }: Props) {
   const copy = COPY[error.code];
 
   return (
-    <div role="alert">
-      <h1 ref={headingRef} tabIndex={-1} style={{ fontSize: 18 }}>
+    <div className="result-screen results-enter">
+      <h1 ref={headingRef} tabIndex={-1}>
         {copy.title}
       </h1>
-      <p>{error.message}</p>
-      <button type="button" onClick={onRecover} style={{ padding: "8px 12px" }}>
-        {copy.button}
-      </button>
+      <section className="result-issue" role="alert" aria-labelledby="error-reason-heading">
+        <h2 id="error-reason-heading">What happened</h2>
+        <p className="error-reason">{error.message}</p>
+      </section>
+      <div className="result-actions">
+        <button type="button" className="primary" onClick={onRecover}>{copy.button}</button>
+      </div>
     </div>
   );
 }

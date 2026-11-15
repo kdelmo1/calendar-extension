@@ -43,7 +43,7 @@ type Screen =
   | { name: "input" }
   | { name: "loading"; message: string }
   | { name: "review"; data: ParseResult }
-  | { name: "success"; result: WriteResult }
+  | { name: "success"; result: WriteResult; submitted: ParseResult | null }
   | { name: "undone" }
   | { name: "error"; error: AppError };
 
@@ -121,6 +121,8 @@ export default function App() {
   // The last events the user reviewed. null until real events exist, so a retry
   // can never write fake events to someone's real calendar.
   const [lastReviewed, setLastReviewed] = useState<ParseResult | null>(null);
+  // Keep the exact write attempt available to the long-lived result listener.
+  const writeAttempt = useRef<ParseResult | null>(null);
   // What the user last tried, so "Retry" knows what to repeat.
   const [lastInput, setLastInput] = useState<CaptureInput | null>(null);
   // Events that failed to write, for "Retry the failed events".
@@ -187,6 +189,7 @@ export default function App() {
 
   // Sends events to Lane 3 (and fakes the reply while USE_FAKE_BACKEND is on).
   function sendWrite(result: ParseResult) {
+    writeAttempt.current = result;
     setScreen({ name: "loading", message: "Creating your calendar…" });
     send({ type: "WRITE_REQUEST", payload: result });
 
@@ -211,7 +214,7 @@ export default function App() {
     const result = payload as WriteResult;
     // Remember which events failed, in case the user retries them.
     setFailedIds((result.failed ?? []).map((f) => f.eventId));
-    setScreen({ name: "success", result });
+    setScreen({ name: "success", result, submitted: writeAttempt.current });
   }
 
   // ---------- Undo (Lane 3) ----------
@@ -408,6 +411,7 @@ export default function App() {
         {screen.name === "success" && (
           <SuccessScreen
             result={screen.result}
+            submitted={screen.submitted}
             onUndo={() => handleUndo(screen.result.calendarId)}
           />
         )}
