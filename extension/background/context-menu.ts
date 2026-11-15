@@ -18,7 +18,7 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create(
       {
         id: MENU_ID,
-        title: "Add dates to Google Calendar",
+        title: "Add dates with Calibrate",
         contexts: ["selection", "image"],
       },
       () => {

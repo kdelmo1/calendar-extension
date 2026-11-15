@@ -1,79 +1,261 @@
-// One place for colors, spacing, focus outlines and narrow-width rules.
-const css = `
+import { useEffect, useSyncExternalStore } from "react";
+
+export type Theme = "light" | "dark";
+export const THEME_STORAGE_KEY = "calibrateTheme";
+const systemTheme = (): Theme => window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+let theme: Theme = typeof window === "undefined" ? "light" : systemTheme();
+let preference: Theme | null = null;
+let revision = 0;
+const listeners = new Set<() => void>();
+
+function applyTheme(next: Theme) {
+  theme = next;
+  document.documentElement.dataset.theme = next;
+  for (const notify of listeners) notify();
+}
+function subscribe(notify: () => void) {
+  listeners.add(notify);
+  return () => { listeners.delete(notify); };
+}
+
+// UI state only: no runtime messages or capture/calendar behavior changes.
+export function toggleTheme() {
+  preference = theme === "dark" ? "light" : "dark";
+  revision++;
+  applyTheme(preference);
+  if (typeof chrome !== "undefined" && chrome.storage?.local) {
+    void chrome.storage.local.set({ [THEME_STORAGE_KEY]: preference }).catch(() => {});
+  }
+}
+export function useTheme() {
+  const current = useSyncExternalStore(subscribe, () => theme, () => "light" as Theme);
+  return { theme: current, toggleTheme };
+}
+export function ThemeToggle() {
+  const { theme: current } = useTheme();
+  const label = current === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  return (
+    <button type="button" className="icon-button theme-toggle" onClick={toggleTheme} aria-label={label} title={label}>
+      <span className="material-symbols-outlined" aria-hidden="true">
+        {current === "dark" ? "light_mode" : "dark_mode"}
+      </span>
+    </button>
+  );
+}
+export function CalibrateLogo() {
+  return <span className="brand-mark" aria-hidden="true" />;
+}
+
+export const css = `
+  @font-face {
+    font-family: Roboto; font-style: normal; font-weight: 400; font-display: swap;
+    src: url('/calibrate/fonts/roboto-400.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: Roboto; font-style: normal; font-weight: 500; font-display: swap;
+    src: url('/calibrate/fonts/roboto-500.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'Material Symbols Outlined'; font-style: normal; font-weight: 400; font-display: block;
+    src: url('/calibrate/fonts/material-theme-icons.ttf') format('truetype');
+  }
   :root {
-    --text: #1f1f1f;
-    --border: #767676;      /* 4.5:1 on white, passes for input borders */
-    --primary: #1558b0;     /* white text on this is above 7:1 */
-    --primary-hover: #0f4590;
-    --focus: #0b57d0;
-    --danger: #b00020;
+    color-scheme: light;
+    --background: #FFFFFF;
+    --surface: #FFFFFF;
+    --text: #000000;
+    --text-secondary: #5F5F5F;
+    --divider: #E0E0E0;
+    --accent: #C2410C;
+    --on-accent: #FFFFFF;
+    --field-border: #5F5F5F;
+    --selected-background: #FFFFFF;
+    --disabled-background: #E0E0E0;
+    --disabled-text: #5F5F5F;
+    --font-family: Roboto, system-ui, sans-serif;
+    --font-title: 20px;
+    --font-body: 14px;
+    --font-secondary: 12px;
+    --font-regular: 400;
+    --font-medium: 500;
+    --line-height: 1.5;
+    --space-0: 0px;
+    --space-1: 8px;
+    --space-2: 16px;
+    --space-3: 24px;
+    --space-4: 32px;
+    --space-5: 40px;
+    --space-6: 48px;
+    --radius-card: 12px;
+    --radius-field: 4px;
+    --radius-pill: 999px;
+    --border-width: 1px;
+    --focus-width: 2px;
+    --focus-offset: 2px;
+    --control-height: 40px;
+    --field-height: 48px;
+    --icon-size: 20px;
+    --logo-size: 32px;
+    --logo-mask: url('/calibrate/icons/calibrate-128.png');
+    --checkbox-size: 16px;
+    --progress-height: 4px;
+    --panel-max-width: 640px;
+    --motion-duration: 180ms;
+    --motion-easing: ease-out;
+    --shadow: none;
+    /* Compatibility aliases for existing screens during Lane 4's migration. */
+    --primary: var(--accent);
+    --primary-hover: var(--accent);
+    --focus: var(--accent);
+    --border: var(--divider);
+    --danger: var(--text);
+    --secondary: var(--text-secondary);
+    --muted: var(--text-secondary);
+    --bg: var(--background);
   }
-
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --background: #121212;
+    --surface: #1E1E1E;
+    --text: #FFFFFF;
+    --text-secondary: #B3B3B3;
+    --divider: #2C2C2C;
+    --accent: #FB8C00;
+    --on-accent: #000000;
+    --field-border: #B3B3B3;
+    --selected-background: #1E1E1E;
+    --disabled-background: #2C2C2C;
+    --disabled-text: #B3B3B3;
+  }
+  * { box-sizing: border-box; }
+  html, body, #root { min-height: 100%; }
   body {
-    margin: 0;
-    background: #fff;
-    color: var(--text);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.45;
+    margin: var(--space-0); background: var(--background); color: var(--text);
+    font-family: var(--font-family); font-size: var(--font-body);
+    font-weight: var(--font-regular); line-height: var(--line-height);
   }
-
-  .app { padding: 16px; max-width: 640px; margin: 0 auto; }
-
+  .app { padding: var(--space-2); max-width: var(--panel-max-width); margin: var(--space-0) auto; }
   h1, h2, p, li { overflow-wrap: anywhere; }
-  h1 { margin: 0 0 8px; }
-  h2 { margin: 16px 0 8px; }
-
-  label { display: block; font-weight: 600; margin-bottom: 4px; }
-
-  input[type="text"], input[type="date"], input[type="datetime-local"], textarea {
-    font: inherit;
-    padding: 6px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    max-width: 100%;
-    box-sizing: border-box;
+  h1, h2 { font-size: var(--font-title); font-weight: var(--font-medium); line-height: var(--line-height); }
+  h1 { margin: var(--space-0) var(--space-0) var(--space-2); }
+  h2 { margin: var(--space-3) var(--space-0) var(--space-1); }
+  p { margin: var(--space-0) var(--space-0) var(--space-2); }
+  small, .secondary-text { font-size: var(--font-secondary); color: var(--text-secondary); }
+  strong, b, label { font-weight: var(--font-medium); }
+  label { display: block; margin-bottom: var(--space-1); }
+  input, textarea, select, button { font: inherit; }
+  input[type="text"], input[type="date"], input[type="datetime-local"], textarea, select {
+    padding: var(--space-1) var(--space-2); min-height: var(--field-height);
+    border: var(--border-width) solid var(--field-border); border-radius: var(--radius-field);
+    background: var(--surface); color: var(--text); max-width: 100%;
   }
-  input[type="checkbox"] { width: 18px; height: 18px; margin-right: 6px; vertical-align: middle; }
-
-  button {
-    font: inherit;
-    min-height: 36px;
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: #fff;
-    color: var(--text);
-    cursor: pointer;
+  textarea { resize: vertical; }
+  ::placeholder { color: var(--text-secondary); opacity: 1; }
+  input[type="checkbox"] {
+    width: var(--checkbox-size); height: var(--checkbox-size);
+    margin: var(--space-0) var(--space-1) var(--space-0) var(--space-0);
+    vertical-align: middle; accent-color: var(--accent);
   }
-  button:hover:not(:disabled) { background: #f1f3f4; }
-  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-  button.primary:hover:not(:disabled) { background: var(--primary-hover); }
+  input[type="file"] { color: var(--text-secondary); max-width: 100%; }
+  button, input[type="file"]::file-selector-button {
+    min-height: var(--control-height); padding: var(--space-1) var(--space-2);
+    border: var(--border-width) solid transparent; border-radius: var(--radius-pill);
+    background: transparent; color: var(--accent); font-weight: var(--font-medium); cursor: pointer;
+    transition: opacity var(--motion-duration) var(--motion-easing);
+  }
+  button:hover:not(:disabled), a:hover { text-decoration: underline; text-underline-offset: var(--focus-offset); }
+  button.primary:hover:not(:disabled), .icon-button:hover:not(:disabled) { text-decoration: none; }
+  button.primary, .button-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button.primary:hover:not(:disabled) { background: var(--accent); }
   button:disabled, button.primary:disabled {
-    background: #eee; border-color: #ccc; color: #6b6b6b; cursor: not-allowed;
+    background: var(--disabled-background); border-color: var(--divider);
+    color: var(--disabled-text); cursor: not-allowed;
   }
-
-  a { color: #0b57d0; }
+  a { color: var(--accent); text-underline-offset: var(--focus-offset); }
   summary { cursor: pointer; }
-
-  /* A clear outline for keyboard users on every control. */
-  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-  /* Headings that we focus from code don't need an outline. */
-  [tabindex="-1"]:focus { outline: none; }
-
-  /* Hidden on screen, read by screen readers. */
-  .sr-only {
-    position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip: rect(0 0 0 0); white-space: nowrap;
+  :focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
+  [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
+  .card, .event-card {
+    padding: var(--space-2); margin-bottom: var(--space-2);
+    border: var(--border-width) solid var(--divider); border-radius: var(--radius-card);
+    background: var(--surface); box-shadow: var(--shadow);
   }
-
-  /* Narrow panel */
-  @media (max-width: 360px) {
-    .app { padding: 8px; }
-    button.primary { width: 100%; }
+  .selected, [aria-selected="true"] { border-color: var(--accent); background: var(--selected-background); }
+  .app-header {
+    display: flex; align-items: center; gap: var(--space-1);
+    padding-bottom: var(--space-2); margin-bottom: var(--space-3);
+    border-bottom: var(--border-width) solid var(--divider);
+  }
+  .app-header .brand-name { font-size: var(--font-title); font-weight: var(--font-medium); }
+  .app-header .theme-toggle { margin-left: auto; }
+  .brand-mark {
+    display: inline-block; width: var(--logo-size); height: var(--logo-size); flex-shrink: 0;
+    background: var(--accent);
+    -webkit-mask: var(--logo-mask) center / contain no-repeat;
+    mask: var(--logo-mask) center / contain no-repeat;
+  }
+  .icon-button {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: var(--control-height); height: var(--control-height); padding: var(--space-0);
+    color: var(--text); flex-shrink: 0;
+  }
+  .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined'; font-style: normal; font-weight: var(--font-regular);
+    font-size: var(--icon-size); line-height: 1; letter-spacing: normal;
+    text-transform: none; white-space: nowrap; direction: ltr;
+    font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased;
+  }
+  .linear-progress {
+    height: var(--progress-height); width: 100%; overflow: hidden;
+    background: var(--divider); border-radius: var(--radius-pill);
+  }
+  .linear-progress::after {
+    content: ''; display: block; width: 40%; height: 100%; background: var(--accent);
+    animation: calibrate-fade-in var(--motion-duration) var(--motion-easing);
+  }
+  .results-enter { animation: calibrate-fade-in var(--motion-duration) var(--motion-easing); }
+  @keyframes calibrate-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .sr-only {
+    position: absolute; width: var(--border-width); height: var(--border-width);
+    padding: var(--space-0); margin: calc(-1 * var(--border-width)); overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; border: none;
+  }
+  @media (max-width: 360px) { .app { padding: var(--space-1); } button.primary { width: 100%; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   }
 `;
 
 export default function GlobalStyles() {
+  useEffect(() => {
+    let active = true;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const initialRevision = revision;
+    applyTheme(preference ?? systemTheme());
+    const followSystem = () => { if (preference === null) applyTheme(systemTheme()); };
+    const followStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== "local" || !(THEME_STORAGE_KEY in changes)) return;
+      const next = changes[THEME_STORAGE_KEY].newValue;
+      preference = next === "light" || next === "dark" ? next : null;
+      revision++;
+      applyTheme(preference ?? systemTheme());
+    };
+    media.addEventListener("change", followSystem);
+    if (typeof chrome !== "undefined" && chrome.storage?.local) {
+      chrome.storage.onChanged.addListener(followStorage);
+      void chrome.storage.local.get(THEME_STORAGE_KEY).then(saved => {
+        // Do not let a late storage read undo a user's new toggle choice.
+        if (!active || revision !== initialRevision) return;
+        const next = saved[THEME_STORAGE_KEY];
+        preference = next === "light" || next === "dark" ? next : null;
+        applyTheme(preference ?? systemTheme());
+      }).catch(() => {});
+    }
+    return () => {
+      active = false;
+      media.removeEventListener("change", followSystem);
+      if (typeof chrome !== "undefined" && chrome.storage?.onChanged) chrome.storage.onChanged.removeListener(followStorage);
+    };
+  }, []);
   return <style>{css}</style>;
 }
