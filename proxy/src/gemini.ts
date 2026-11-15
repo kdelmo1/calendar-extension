@@ -209,6 +209,10 @@ async function tryOnce<T>(
     if (res.status === 401 || res.status === 403) {
       return fatal("The server's Gemini key isn't working. Tell the team to check proxy/.env.");
     }
+    // 402: the Gemini account's prepaid credits ran out (top up in AI Studio).
+    if (res.status === 402) {
+      return fatal("Our Gemini account is out of credits. Tell the team to top it up in Google AI Studio.");
+    }
     // 400 and anything else: Gemini couldn't use what we sent (e.g. a damaged file).
     return fatal("Gemini could not read this input. Try a different file or a screenshot.");
   }
