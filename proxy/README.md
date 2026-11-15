@@ -130,6 +130,60 @@ The free tier allows **15 requests per minute per model**, shared by everyone us
 A big text input (60+ lines) uses up to 3 requests, because it is split into parallel pieces.
 Going over gives HTTP 429. Don't run two `try:` scripts back to back; wait a minute between them.
 
+## CORS (who may call the server)
+
+Browsers only let an extension read our replies if its origin is allowed. Allowed:
+`chrome-extension://dclcclgfpcknfcfbehgedbnofmabmmoo` (our fixed dev ID from Lane 1's
+manifest `key`), plus anything in `ALLOWED_ORIGINS` (comma-separated). Other websites get
+403. Requests with no `Origin` (curl, test scripts) are allowed. CORS only stops *browsers*;
+anyone can still call the URL with curl, so keep `--max-instances` low.
+
+## Deploy to Cloud Run
+
+You need: the Google Cloud CLI (`gcloud`) and a Google Cloud project **with billing enabled**
+(Cloud Run requires it; small hackathon use should stay within the free tier).
+Heads-up: if you enable billing on the *same* project as the Gemini key, Gemini calls move to
+the paid tier (higher limits, small charges). Check the key's plan in AI Studio.
+
+Run these from the `proxy/` folder, one at a time.
+
+1. Install the CLI (macOS with Homebrew), then sign in and pick the project:
+   ```bash
+   brew install --cask google-cloud-sdk
+   gcloud auth login
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+2. Turn on the services we use:
+   ```bash
+   gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+   ```
+3. Store the Gemini key in Secret Manager (read from `.env`, never typed or printed):
+   ```bash
+   grep '^GEMINI_API_KEY=' .env | cut -d= -f2- | tr -d '\n' | gcloud secrets create gemini-api-key --data-file=-
+   ```
+4. Let Cloud Run read that secret:
+   ```bash
+   PROJECT_NUMBER=$(gcloud projects describe "$(gcloud config get-value project)" --format='value(projectNumber)')
+   gcloud secrets add-iam-policy-binding gemini-api-key --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" --role=roles/secretmanager.secretAccessor
+   ```
+5. Build and deploy (takes a few minutes; say yes if it asks to create a repository):
+   ```bash
+   gcloud run deploy calendar-proxy --source . --region us-west1 --allow-unauthenticated --set-secrets GEMINI_API_KEY=gemini-api-key:latest --max-instances 3 --memory 512Mi
+   ```
+6. Check it:
+   ```bash
+   URL=$(gcloud run services describe calendar-proxy --region us-west1 --format='value(status.url)')
+   curl "$URL/health"
+   PROXY_URL="$URL" npm run try:prompt
+   ```
+
+To update after code changes, run step 5 again. To change the key, add a new secret version
+(`gcloud secrets versions add gemini-api-key --data-file=-`, same pipe as step 3) and redeploy.
+Demo day: add `--min-instances 1` to step 5 so the first request isn't slow (costs a little).
+
+Give Lane 1 the URL for `manifest.json`:
+`"host_permissions": ["https://calendar-proxy-....run.app/*"]`
+
 ## Files
 
 | File                  | What it does                                         |
