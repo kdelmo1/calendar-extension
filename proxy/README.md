@@ -1,0 +1,54 @@
+# proxy/ — Gemini server (Lane 2)
+
+Small Node server that turns a `CaptureInput` into a `ParseResult` with Gemini.
+The Gemini API key lives only here, never in the extension.
+
+## Run it locally
+
+```bash
+cd proxy
+npm install
+cp .env.example .env      # then paste the real GEMINI_API_KEY into .env
+npm run dev               # http://localhost:8080, restarts when you save a file
+```
+
+Optional in `.env`: `GEMINI_MODEL=gemini-3.5-flash` to try a different model.
+
+## Endpoints
+
+| Method | Path      | Body           | Success (200)  | Failure (4xx/5xx)         |
+|--------|-----------|----------------|----------------|---------------------------|
+| GET    | `/health` | –              | `{ "ok": true }` | –                       |
+| POST   | `/parse`  | `CaptureInput` | `ParseResult`  | `AppError { code, message }` |
+
+Quick test with curl:
+
+```bash
+curl -s localhost:8080/parse -H "Content-Type: application/json" \
+  -d '{"kind":"text","text":"Midterm: Feb 10, 2027. Spring break March 22-26, 2027."}'
+```
+
+## Check accuracy on the UCSC page
+
+With the server running, in a second terminal:
+
+```bash
+npm run try:ucsc
+```
+
+It sends `fixtures/inputs/ucsc-key-dates.txt` and checks every date in
+`fixtures/ucsc-winter.json`. Full answer is saved to `proxy/out/ucsc-result.json`
+(ignored by git).
+
+## Files
+
+| File                  | What it does                                         |
+|-----------------------|------------------------------------------------------|
+| `src/server.ts`       | Express server and routes                            |
+| `src/parse.ts`        | CaptureInput → Gemini message → cleaned ParseResult  |
+| `src/gemini.ts`       | The one place that calls the Gemini REST API         |
+| `src/prompt.ts`       | Rules we give Gemini (edit this to improve accuracy) |
+| `src/schema.ts`       | JSON shape Gemini must reply with                    |
+| `src/types.ts`        | Team handoff types (keep in sync with the contract)  |
+| `src/errors.ts`       | `AppErrorException` → `AppError` replies             |
+| `scripts/try-ucsc.ts` | Accuracy check against the fixture                   |
