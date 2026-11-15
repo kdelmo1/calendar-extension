@@ -158,6 +158,15 @@ async function fetchWithRetry(fn: () => Promise<Response>, retries = [1000, 2000
 
 //takes the list of parsed events and adds them to calendar
 export async function writeCalendar(token: string, parseResult: { calendarName: string; timeZone: string; events: CalendarEvent[] }): Promise<WriteResult> {
+  // 0. Check the times first, so a broken event never leaves an empty calendar behind.
+  const backwards = parseResult.events.find(endsBeforeStart);
+  if (backwards) {
+    throw {
+      code: "CALENDAR_ERROR",
+      message: `"${backwards.title}" ends before it starts. Go back, fix its times, and try again.`,
+    } as AppError;
+  }
+
   // 1. Create the new separate calendar
   const calendarId = await createCalendar(token, parseResult.calendarName, parseResult.timeZone);
   const calendarLink = `https://calendar.google.com/calendar/u/0?cid=${encodeURIComponent(calendarId)}`;
@@ -226,6 +235,8 @@ export async function writeCalendar(token: string, parseResult: { calendarName: 
 
   // 3. Evaluate results based on your specifications
   if (added === 0 && parseResult.events.length > 0) {
+    // Don't leave an empty calendar in the user's account.
+    await undoCalendar(token, calendarId).catch(() => {});
     throw { code: "CALENDAR_ERROR", message: "Nothing worked. Failed to add any events to the calendar." };
   }
 
@@ -305,4 +316,11 @@ export async function makeCalendarPublic(token: string, calendarId: string): Pro
 // as "2027-01-04T09:00" (no seconds), so add ":00" when they're missing.
 function withSeconds(dateTime: string): string {
   return dateTime.length === 16 ? `${dateTime}:00` : dateTime;
+}
+
+// True if the event's end is earlier than its start (e.g. a time edited by hand).
+// Compares the written clock time ("2027-01-04T09:00"), which is in the event's own time zone.
+function endsBeforeStart(event: CalendarEvent): boolean {
+  const length = event.allDay ? 10 : 16; // "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM"
+  return event.end.slice(0, length) < event.start.slice(0, length);
 }
