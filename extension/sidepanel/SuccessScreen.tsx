@@ -22,8 +22,8 @@ export default function SuccessScreen({ result, onUndo }: Props) {
       </h1>
 
       {/* Some events may have failed. Task 5 adds a retry button for this. */}
-      {result.failed.length > 0 && (
-        <p>{result.failed.length} could not be added.</p>
+      {(result.failed?.length ?? 0) > 0 && (
+        <p>{result.failed?.length ?? 0} could not be added.</p>
       )}
 
       <p>

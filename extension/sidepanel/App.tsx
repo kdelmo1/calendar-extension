@@ -1,32 +1,47 @@
 import { useEffect, useState } from "react";
+import ErrorScreen from "./ErrorScreen";
+import InputScreen from "./InputScreen";
 import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
 import SuccessScreen from "./SuccessScreen";
-import ErrorScreen from "./ErrorScreen";
-import type { AppError, CaptureInput, Message, ParseResult, WriteResult } from "./types";
+import type {
+  AppError,
+  CaptureInput,
+  Message,
+  ParseResult,
+  WriteResult,
+} from "./types";
 // Fake data from Lane 2's fixtures folder (repo root).
 import fixture from "../../fixtures/ucsc-winter.json";
 
 // JSON imports are typed loosely, so we tell TypeScript it's a ParseResult.
 const fakeData = fixture as unknown as ParseResult;
 
+// TEMPORARY flags. Set all three to false before the demo / once Lanes 2 and 3 merge.
 const SHOW_DEMO_CONTROLS = true;
-
 const USE_FAKE_BACKEND = true;
-
 const SHOW_ERROR_TESTS = true;
 
 const ERROR_CODES: AppError["code"][] = [
-  "NO_DATES", "PARSE_FAILED", "RATE_LIMIT", "TIMEOUT",
-  "AUTH_DENIED", "PARTIAL_WRITE", "CALENDAR_ERROR",
+  "NO_DATES",
+  "PARSE_FAILED",
+  "RATE_LIMIT",
+  "TIMEOUT",
+  "AUTH_DENIED",
+  "PARTIAL_WRITE",
+  "CALENDAR_ERROR",
 ];
 
-type Screen = 
+// Which screen is showing right now.
+type Screen =
+  | { name: "input" }
   | { name: "loading"; message: string }
   | { name: "review"; data: ParseResult }
   | { name: "success"; result: WriteResult }
   | { name: "undone" }
-  | { name: "error"; error:AppError };
+  | { name: "error"; error: AppError };
+
+// A message payload is either good data or an AppError.
 function isAppError(x: unknown): x is AppError {
   return typeof x === "object" && x !== null && "code" in x && "message" in x;
 }
@@ -42,20 +57,21 @@ function loadingText(input: CaptureInput): string {
 // Send a message to the other lanes. Safe to call outside the extension.
 function send(message: Message) {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
-  // catch: nobody is listening yet until Lanes 1 and 2 are merged.
+  // catch: nobody is listening yet until the other lanes are merged.
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
 export default function App() {
-  // Start on the review screen with fake data, as before.
-  const [screen, setScreen] = useState<Screen>({ name: "review", data: fakeData });
-
+  // The panel opens on the input screen.
+  const [screen, setScreen] = useState<Screen>({ name: "input" });
+  // The last events the user reviewed, so Undo and retries can use them.
   const [lastReviewed, setLastReviewed] = useState<ParseResult>(fakeData);
-  
+  // What the user last tried, so "Retry" knows what to repeat.
   const [lastInput, setLastInput] = useState<CaptureInput | null>(null);
   // Events that failed to write, for "Retry the failed events".
   const [failedIds, setFailedIds] = useState<string[]>([]);
 
+  // ---------- Parsing (Lane 2) ----------
   function startParsing(input: CaptureInput) {
     setLastInput(input);
     setScreen({ name: "loading", message: loadingText(input) });
@@ -69,13 +85,37 @@ export default function App() {
       return;
     }
     const result = payload as ParseResult;
+    // Lane 2 sent something unusable, or found nothing.
+    if (!result || !Array.isArray(result.events) || result.events.length === 0) {
+      setScreen({
+        name: "error",
+        error: { code: "NO_DATES", message: "We couldn't find any dates in that." },
+      });
+      return;
+    }
+    setLastReviewed(result); // so Undo and retries use the parsed events
     setScreen({ name: "loading", message: `Found ${result.events.length} dates` });
     setTimeout(() => setScreen({ name: "review", data: result }), 1200);
   }
 
-  // Send the edited events to Lane 3. For now we only log it.
-    function handleAdd(result: ParseResult) {
+  // The user gave us something on the input screen.
+  function handleInputSubmit(input: CaptureInput) {
+    startParsing(input);
+    if (USE_FAKE_BACKEND) {
+      // Pretend Lane 2 answered after 2 seconds.
+      setTimeout(() => handleParseResult(fakeData), 2000);
+    }
+  }
+
+  // ---------- Writing (Lane 3) ----------
+  // User clicked "Add to Google Calendar": remember what they reviewed, then send.
+  function handleAdd(result: ParseResult) {
     setLastReviewed(result);
+    sendWrite(result);
+  }
+
+  // Sends events to Lane 3 (and fakes the reply while USE_FAKE_BACKEND is on).
+  function sendWrite(result: ParseResult) {
     setScreen({ name: "loading", message: "Creating your calendar…" });
     send({ type: "WRITE_REQUEST", payload: result });
 
@@ -99,8 +139,8 @@ export default function App() {
     }
     const result = payload as WriteResult;
     // Remember which events failed, in case the user retries them.
-    setFailedIds(result.failed.map((f) => f.eventId));
-    setScreen({ name: "success", result: payload as WriteResult });
+    setFailedIds((result.failed ?? []).map((f) => f.eventId));
+    setScreen({ name: "success", result });
   }
 
   // ---------- Undo (Lane 3) ----------
@@ -121,26 +161,32 @@ export default function App() {
     setScreen({ name: "undone" });
   }
 
+  // ---------- Error recovery ----------
+  // What the recovery button does, depending on the error code.
   function recover(code: AppError["code"]) {
     if (code === "RATE_LIMIT" || code === "TIMEOUT") {
-      // Try the same capture again. If we have none, go back to review.
-      if (lastInput) startParsing(lastInput);
-      else setScreen({ name: "review", data: lastReviewed });
+      // Repeat the last capture. If there is none, go to the input screen.
+      if (lastInput) handleInputSubmit(lastInput);
+      else setScreen({ name: "input" });
     } else if (code === "NO_DATES" || code === "PARSE_FAILED") {
-      // Task 6 will send the user to the input screen. For now: review.
-      setScreen({ name: "review", data: fakeData });
+      setScreen({ name: "input" });
     } else if (code === "PARTIAL_WRITE") {
-      // Send only the events that failed.
-      const retry = {
+      // Nothing to retry? Go back to the review screen.
+      if (failedIds.length === 0) {
+        setScreen({ name: "review", data: lastReviewed });
+        return;
+      }
+      // Send only the failed events, without overwriting lastReviewed.
+      sendWrite({
         ...lastReviewed,
         events: lastReviewed.events.filter((e) => failedIds.includes(e.id)),
-      };
-      handleAdd(retry);
+      });
     } else {
       // AUTH_DENIED and CALENDAR_ERROR: send the last write again.
-      handleAdd(lastReviewed);
+      sendWrite(lastReviewed);
     }
   }
+
   // Listen for messages from the other lanes.
   useEffect(() => {
     if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
@@ -159,17 +205,21 @@ export default function App() {
   return (
     <main style={{ padding: 12, fontFamily: "sans-serif" }}>
       {SHOW_DEMO_CONTROLS && (
-        <button
-          type="button"
-          style={{ marginBottom: 12 }}
-          onClick={() => {
-            // Pretend Lane 1 sent CAPTURE_READY, then Lane 2 answered 2 seconds later.
-            startParsing({ kind: "text", text: "fake" });
-            setTimeout(() => handleParseResult(fakeData), 2000);
-          }}
-        >
-          Simulate: capture, then result
-        </button>
+        <div style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            style={{ marginRight: 4 }}
+            onClick={() => handleInputSubmit({ kind: "text", text: "fake" })}
+          >
+            Simulate: capture, then result
+          </button>
+          <button
+            type="button"
+            onClick={() => setScreen({ name: "review", data: fakeData })}
+          >
+            Show sample review
+          </button>
+        </div>
       )}
 
       {SHOW_ERROR_TESTS && (
@@ -192,6 +242,8 @@ export default function App() {
           ))}
         </div>
       )}
+
+      {screen.name === "input" && <InputScreen onSubmit={handleInputSubmit} />}
 
       {screen.name === "loading" && <LoadingScreen message={screen.message} />}
 
