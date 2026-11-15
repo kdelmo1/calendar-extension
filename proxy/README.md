@@ -201,3 +201,6 @@ Give Lane 1 the URL for `manifest.json`:
 | `scripts/try-files.ts`| Checks PDFs, images, screenshots, URLs, .md files    |
 | `scripts/try-prompt.ts`| Checks each prompt rule with small tricky inputs    |
 | `scripts/try-errors.ts`| Checks every failure using a fake Gemini (no quota) |
+| `scripts/try-real.ts` | Task 9: checks the 10 real inputs (`npm run try:real`) |
+| `scripts/real-check.ts` | Loads the real inputs' answer keys and checks a result |
+| `scripts/save-demo-backups.ts` | Task 10: saves the 3 demo backups (`npm run save:demo`) |

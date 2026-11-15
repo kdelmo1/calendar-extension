@@ -96,4 +96,61 @@ for (const [name, fakeFetch, code] of failures) {
 }
 globalThis.fetch = realFetch;
 
+// 7-13. Demo backups (task 10): the 3 demo inputs fall back to saved results when the
+// server can't answer; everything else still gets the error.
+{
+  const { readFileSync } = await import("node:fs");
+  const real = (name: string) => readFileSync(new URL(`../../fixtures/real/${name}`, import.meta.url));
+  const ucscText = readFileSync(new URL("../../fixtures/inputs/ucsc-key-dates.txt", import.meta.url), "utf8");
+  const pdf = real("2026-2027-AcadAdmin-Calendar.pdf").toString("base64");
+  const png = real("Forum(English).png").toString("base64");
+  const otherPdf = readFileSync(new URL("../../fixtures/inputs/flyer.pdf", import.meta.url)).toString("base64");
+
+  let fetchCalls = 0;
+  const warnings: string[] = [];
+  const realWarn = console.warn;
+  console.warn = (...args: unknown[]) => warnings.push(args.join(" "));
+  const unreachable: typeof fetch = async () => { fetchCalls++; throw new TypeError("Failed to fetch"); };
+
+  async function run(name: string, payload: object, fakeFetch: typeof fetch | null, expect: (p: Record<string, unknown>) => string | null) {
+    globalThis.fetch = fakeFetch ?? realFetch;
+    sentMessages.length = 0;
+    warnings.length = 0;
+    fetchCalls = 0;
+    await simulate({ type: "PARSE_REQUEST", payload });
+    const p = sentMessages[0]?.payload as Record<string, unknown>;
+    const events = (p?.events as unknown[] | undefined)?.length;
+    report(name, expect(p), events !== undefined ? `${events} events${warnings[0] ? `, ${warnings[0]}` : ""}` : `${p?.code}`);
+  }
+  const hasEvents = (n: number) => (p: Record<string, unknown>) =>
+    (p?.events as unknown[] | undefined)?.length === n && warnings.length === 1 ? null : `got ${JSON.stringify(p).slice(0, 120)}`;
+
+  await run("demo PDF, server down -> saved result", { kind: "file", fileBase64: pdf, mimeType: "application/pdf" }, unreachable, hasEvents(36));
+  await run("demo flyer upload, server down -> saved result", { kind: "file", fileBase64: png, mimeType: "image/png" }, unreachable, hasEvents(1));
+  await run("demo flyer right-clicked, server down -> saved result", { kind: "image", imageUrl: "https://example.edu/img/Forum(English).png" }, unreachable, hasEvents(1));
+  await run("demo UCSC text, server down -> saved result", { kind: "text", text: ucscText }, unreachable, hasEvents(153));
+  await run("NOT a demo file, server down -> still PARSE_FAILED", { kind: "file", fileBase64: otherPdf, mimeType: "application/pdf" }, unreachable,
+    (p) => (p?.code === "PARSE_FAILED" ? null : `got ${JSON.stringify(p).slice(0, 120)}`));
+  await run("demo input, server says NO_DATES -> keeps NO_DATES", { kind: "file", fileBase64: png, mimeType: "image/png" },
+    async () => new Response(JSON.stringify({ code: "NO_DATES", message: "none" }), { status: 422 }),
+    (p) => (p?.code === "NO_DATES" ? null : `got ${JSON.stringify(p).slice(0, 120)}`));
+
+  // Offline: use the backup straight away, without even trying the network.
+  // (Newer Node versions have a read-only `navigator`, so replace it with defineProperty
+  // and put the original back afterwards.)
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", { value: { onLine: false }, configurable: true, writable: true });
+  await run("demo PDF while offline -> saved result, no network call", { kind: "file", fileBase64: pdf, mimeType: "application/pdf" }, unreachable,
+    (p) => ((p?.events as unknown[] | undefined)?.length === 36 && fetchCalls === 0 ? null : `events ${(p?.events as unknown[])?.length}, fetch calls ${fetchCalls}`));
+  if (originalNavigator) Object.defineProperty(globalThis, "navigator", originalNavigator);
+  else delete (globalThis as { navigator?: unknown }).navigator;
+
+  // Online and the server works: the LIVE answer is used, not the backup.
+  await run("demo flyer, server up -> live answer (no backup)", { kind: "file", fileBase64: png, mimeType: "image/png" }, null,
+    (p) => ((p?.events as unknown[] | undefined)?.length === 1 && warnings.length === 0 ? null : `warnings: ${warnings.join("; ")}`));
+
+  console.warn = realWarn;
+  globalThis.fetch = realFetch;
+}
+
 console.log(`\n${passed}/${total} cases passed.`);
