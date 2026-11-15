@@ -1,0 +1,837 @@
+{
+  "_readme": "Answer keys for the 10 real test inputs (task 9). Run with `npm run try:real` in proxy/. Each input: file (path from this folder), kind (text | file | screenshot), optional mimeType/pageTitle/timeZone, and events = the dates a careful person would add. An expected event matches when Gemini's start/end BEGIN WITH the given strings ('2026-12-10' accepts any time that day; a value starting with 'T' like 'T17:30' checks only the time). end is optional. Optional per event: category, allDay. allowExtras: any extra events are OK. okExtras: extra events are OK if their title or sourceText contains one of these words (things that are fine to add but not required, like office hours). allFlagged: every event must be flagged for review. An input 'needs no fixes' when every expected event is found with the right details and there are no other extra events. Decisions (Nov 14, 2026): every dated syllabus item becomes an event (lectures = class); a schedule with no date gets its events, all flagged for review. optional: true on an expected event = fine if present, not required. Weekly meetings with no specific date (sections, regular office hours, 'Tuesdays 5:20 PM') should NOT become single events on a made-up date. recurrence: {byday, any?} = must repeat weekly on those days; leave it out = must NOT repeat. flagged: must be flagged for review. Decisions (repeating events): only class meetings repeat in syllabi (not office hours or lists of alternative sections); a dated schedule gets no extra repeating lecture; a weekly meeting with no dates is added but flagged.",
+  "inputs": [
+    {
+      "name": "ucsc-key-dates",
+      "about": "UCSC registrar academic calendar page (all of 2026-27), highlighted text. Key = the Winter 2027 dates only.",
+      "file": "../inputs/ucsc-key-dates.txt",
+      "kind": "text",
+      "pageTitle": "Academic & Administrative Calendar – Office of the Registrar",
+      "allowExtras": true,
+      "events": [
+        {
+          "start": "2026-12-24",
+          "end": "2027-01-03",
+          "category": "holiday"
+        },
+        {
+          "start": "2027-01-04",
+          "end": "2027-01-04"
+        },
+        {
+          "start": "2027-01-13",
+          "end": "2027-01-13",
+          "category": "deadline"
+        },
+        {
+          "start": "2027-01-18",
+          "end": "2027-01-18",
+          "category": "holiday"
+        },
+        {
+          "start": "2027-01-25",
+          "end": "2027-01-25",
+          "category": "deadline"
+        },
+        {
+          "start": "2027-02-05",
+          "end": "2027-02-05",
+          "category": "deadline"
+        },
+        {
+          "start": "2027-02-15",
+          "end": "2027-02-15",
+          "category": "holiday"
+        },
+        {
+          "start": "2027-02-16",
+          "end": "2027-02-16",
+          "category": "deadline"
+        },
+        {
+          "start": "2027-02-26",
+          "end": "2027-02-26",
+          "category": "deadline"
+        },
+        {
+          "start": "2027-03-05",
+          "end": "2027-03-05",
+          "category": "deadline"
+        },
+        {
+          "start": "2027-03-12",
+          "end": "2027-03-12",
+          "category": "event"
+        },
+        {
+          "start": "2027-03-15",
+          "end": "2027-03-19",
+          "category": "exam"
+        },
+        {
+          "start": "2027-03-19",
+          "end": "2027-03-19"
+        },
+        {
+          "start": "2027-03-23",
+          "end": "2027-03-23",
+          "category": "deadline"
+        },
+        {
+          "start": "2027-03-26",
+          "end": "2027-03-26",
+          "category": "holiday"
+        },
+        {
+          "start": "2027-03-29",
+          "end": "2027-03-29"
+        }
+      ]
+    },
+    {
+      "name": "ucsd-calendar-pdf",
+      "about": "UC San Diego 2026-27 academic calendar PDF (2 pages, dot leaders, weekday + date, years only in section headings)",
+      "file": "2026-2027-AcadAdmin-Calendar.pdf",
+      "kind": "file",
+      "mimeType": "application/pdf",
+      "events": [
+        {
+          "title": "Fall Quarter Begins",
+          "start": "2026-09-21",
+          "end": "2026-09-21",
+          "category": "event"
+        },
+        {
+          "title": "Fall Instruction Begins",
+          "start": "2026-09-24",
+          "end": "2026-09-24",
+          "category": "event"
+        },
+        {
+          "title": "Fall Fifteenth Day of Instruction",
+          "start": "2026-10-14",
+          "end": "2026-10-14"
+        },
+        {
+          "title": "Veteran's Day",
+          "start": "2026-11-11",
+          "end": "2026-11-11",
+          "category": "holiday"
+        },
+        {
+          "title": "Thanksgiving",
+          "start": "2026-11-26",
+          "end": "2026-11-27",
+          "category": "holiday"
+        },
+        {
+          "title": "Fall Instruction Ends",
+          "start": "2026-12-04",
+          "end": "2026-12-04",
+          "category": "event"
+        },
+        {
+          "title": "Fall Final Exams",
+          "start": "2026-12-05",
+          "end": "2026-12-12",
+          "category": "exam"
+        },
+        {
+          "title": "Fall Quarter Ends",
+          "start": "2026-12-12",
+          "end": "2026-12-12",
+          "category": "event"
+        },
+        {
+          "title": "Winter Break",
+          "start": "2026-12-24",
+          "end": "2026-12-25",
+          "category": "holiday"
+        },
+        {
+          "title": "New Year Holiday",
+          "start": "2026-12-31",
+          "end": "2027-01-01",
+          "category": "holiday"
+        },
+        {
+          "title": "Winter Quarter Begins",
+          "start": "2027-01-04",
+          "end": "2027-01-04",
+          "category": "event"
+        },
+        {
+          "title": "Winter Instruction Begins",
+          "start": "2027-01-04",
+          "end": "2027-01-04",
+          "category": "event"
+        },
+        {
+          "title": "MLK Jr. Holiday",
+          "start": "2027-01-18",
+          "end": "2027-01-18",
+          "category": "holiday"
+        },
+        {
+          "title": "Winter Fifteenth Day of Instruction",
+          "start": "2027-01-25",
+          "end": "2027-01-25"
+        },
+        {
+          "title": "President's Day",
+          "start": "2027-02-15",
+          "end": "2027-02-15",
+          "category": "holiday"
+        },
+        {
+          "title": "Winter Instruction Ends",
+          "start": "2027-03-12",
+          "end": "2027-03-12",
+          "category": "event"
+        },
+        {
+          "title": "Winter Final Exams",
+          "start": "2027-03-13",
+          "end": "2027-03-20",
+          "category": "exam"
+        },
+        {
+          "title": "Winter Quarter Ends",
+          "start": "2027-03-20",
+          "end": "2027-03-20",
+          "category": "event"
+        },
+        {
+          "title": "Spring Quarter Begins",
+          "start": "2027-03-24",
+          "end": "2027-03-24",
+          "category": "event"
+        },
+        {
+          "title": "Farmworkers Day",
+          "start": "2027-03-26",
+          "end": "2027-03-26",
+          "category": "holiday"
+        },
+        {
+          "title": "Spring Instruction Begins",
+          "start": "2027-03-29",
+          "end": "2027-03-29",
+          "category": "event"
+        },
+        {
+          "title": "Spring Fifteenth Day of Instruction",
+          "start": "2027-04-16",
+          "end": "2027-04-16"
+        },
+        {
+          "title": "Memorial Day",
+          "start": "2027-05-31",
+          "end": "2027-05-31",
+          "category": "holiday"
+        },
+        {
+          "title": "Spring Instruction Ends",
+          "start": "2027-06-04",
+          "end": "2027-06-04",
+          "category": "event"
+        },
+        {
+          "title": "Spring Final Exams",
+          "start": "2027-06-05",
+          "end": "2027-06-11",
+          "category": "exam"
+        },
+        {
+          "title": "Spring Quarter Ends",
+          "start": "2027-06-11",
+          "end": "2027-06-11",
+          "category": "event"
+        },
+        {
+          "title": "Commencement",
+          "start": "2027-06-12",
+          "end": "2027-06-13",
+          "category": "event"
+        },
+        {
+          "title": "Juneteenth",
+          "start": "2027-06-18",
+          "end": "2027-06-18",
+          "category": "holiday"
+        },
+        {
+          "title": "Summer I Instruction Begins",
+          "start": "2027-06-28",
+          "end": "2027-06-28",
+          "category": "event"
+        },
+        {
+          "title": "Independence Day",
+          "start": "2027-07-05",
+          "end": "2027-07-05",
+          "category": "holiday"
+        },
+        {
+          "title": "Summer I Instruction Ends",
+          "start": "2027-07-30",
+          "end": "2027-07-30",
+          "category": "event"
+        },
+        {
+          "title": "Summer I Final Exams",
+          "start": "2027-07-30",
+          "end": "2027-07-31",
+          "category": "exam"
+        },
+        {
+          "title": "Summer II Instruction Begins",
+          "start": "2027-08-02",
+          "end": "2027-08-02",
+          "category": "event"
+        },
+        {
+          "title": "Summer II Instruction Ends",
+          "start": "2027-09-03",
+          "end": "2027-09-03",
+          "category": "event"
+        },
+        {
+          "title": "Summer II Final Exams",
+          "start": "2027-09-03",
+          "end": "2027-09-04",
+          "category": "exam"
+        },
+        {
+          "title": "Labor Day",
+          "start": "2027-09-06",
+          "end": "2027-09-06",
+          "category": "holiday"
+        }
+      ]
+    },
+    {
+      "name": "cse20-syllabus-text",
+      "about": "CSE 20 Canvas syllabus page, copied as text (377 lines: policies, staff, office hours, then a dated class schedule)",
+      "file": "private-cse20_syllabus.txt",
+      "kind": "text",
+      "pageTitle": "CSE 20: Beginning Programming in Python (Fall 2026)",
+      "events": [
+        {
+          "title": "Introduction",
+          "start": "2026-09-24",
+          "category": "class"
+        },
+        {
+          "title": "Variables, Expressions, & Operators",
+          "start": "2026-09-29",
+          "category": "class"
+        },
+        {
+          "title": "More Types",
+          "start": "2026-10-01",
+          "category": "class"
+        },
+        {
+          "title": "Conditionals and Branching",
+          "start": "2026-10-06",
+          "category": "class"
+        },
+        {
+          "title": "Loops",
+          "start": "2026-10-08",
+          "category": "class"
+        },
+        {
+          "title": "Functions",
+          "start": "2026-10-13",
+          "category": "class"
+        },
+        {
+          "title": "Functions Continued",
+          "start": "2026-10-15",
+          "category": "class"
+        },
+        {
+          "title": "Strings",
+          "start": "2026-10-20",
+          "category": "class"
+        },
+        {
+          "title": "Tuples, Lists, and Dictionaries",
+          "start": "2026-10-22",
+          "category": "class"
+        },
+        {
+          "title": "Midterm in class",
+          "start": "2026-10-27",
+          "category": "exam"
+        },
+        {
+          "title": "Modules",
+          "start": "2026-10-29",
+          "category": "class"
+        },
+        {
+          "title": "Files",
+          "start": "2026-11-03",
+          "category": "class"
+        },
+        {
+          "title": "Classes and Objects",
+          "start": "2026-11-05",
+          "category": "class"
+        },
+        {
+          "title": "Classes and Polymorphism",
+          "start": "2026-11-10",
+          "category": "class"
+        },
+        {
+          "title": "Inheritance",
+          "start": "2026-11-12",
+          "category": "class"
+        },
+        {
+          "title": "More Functions and Recursion",
+          "start": "2026-11-17",
+          "category": "class"
+        },
+        {
+          "title": "Exceptions and Unit Testing",
+          "start": "2026-11-19",
+          "category": "class"
+        },
+        {
+          "title": "Search Algorithms",
+          "start": "2026-11-24",
+          "category": "class"
+        },
+        {
+          "title": "Data Science",
+          "start": "2026-12-01",
+          "category": "class"
+        },
+        {
+          "title": "Final Revision (Optional)",
+          "start": "2026-12-03",
+          "category": "class"
+        },
+        {
+          "title": "FINAL EXAM @ 12:00PM",
+          "start": "2026-12-10T12:00",
+          "end": "2026-12-10",
+          "category": "exam",
+          "allDay": false
+        },
+        {
+          "title": "Office hours moved from 11/17 (optional)",
+          "start": "2026-11-18T13:30",
+          "optional": true
+        },
+        {
+          "title": "Office hours cancelled (optional)",
+          "start": "2026-10-27",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "cse201-syllabus-pdf",
+      "about": "CSE 201 syllabus PDF (7 pages: staff and office hours, then a schedule table with dates like 09/24/26, quiz weeks, Thanksgiving, final exam)",
+      "file": "private-CSE201, Fall 2026.pdf",
+      "kind": "file",
+      "mimeType": "application/pdf",
+      "okExtras": [
+        "quiz",
+        "09/24/26 - 12/04/26"
+      ],
+      "events": [
+        {
+          "title": "Lecture 1: Divide-and-Conquer",
+          "start": "2026-09-24",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 2",
+          "start": "2026-09-29",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 3",
+          "start": "2026-10-01",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 4 (Quiz #1 week)",
+          "start": "2026-10-06"
+        },
+        {
+          "title": "Lecture 5 (Quiz #1 week)",
+          "start": "2026-10-08"
+        },
+        {
+          "title": "Lecture 6",
+          "start": "2026-10-13",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 7",
+          "start": "2026-10-15",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 8 (Quiz #2 week)",
+          "start": "2026-10-20"
+        },
+        {
+          "title": "Lecture 9 (Quiz #2 week)",
+          "start": "2026-10-22"
+        },
+        {
+          "title": "Lecture 10",
+          "start": "2026-10-27",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 11",
+          "start": "2026-10-29",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 12 (Quiz #3 week)",
+          "start": "2026-11-03"
+        },
+        {
+          "title": "Lecture 13 (Quiz #3 week)",
+          "start": "2026-11-05"
+        },
+        {
+          "title": "Lecture 14",
+          "start": "2026-11-10",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 15",
+          "start": "2026-11-12",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 16 (Quiz #4 week)",
+          "start": "2026-11-17"
+        },
+        {
+          "title": "Lecture 17 (Quiz #4 week)",
+          "start": "2026-11-19"
+        },
+        {
+          "title": "Lecture 18: Hashing",
+          "start": "2026-11-24",
+          "category": "class"
+        },
+        {
+          "title": "No lecture (Thanksgiving)",
+          "start": "2026-11-26",
+          "category": "holiday"
+        },
+        {
+          "title": "Lecture 20: Course Review",
+          "start": "2026-12-01",
+          "category": "class"
+        },
+        {
+          "title": "Lecture 21",
+          "start": "2026-12-03",
+          "category": "class"
+        },
+        {
+          "title": "Final Exam",
+          "start": "2026-12-08T12:00",
+          "end": "2026-12-08T15:00",
+          "category": "exam",
+          "allDay": false
+        },
+        {
+          "title": "Instructor office hour moved from 10/27 (optional)",
+          "start": "2026-10-29T10:30",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "cse200-syllabus-pdf",
+      "about": "CSE 200 syllabus PDF (9 pages of mostly policy text; one real date: the grading option deadline; weekly Tuesday lectures with no start/end dates -> one repeating event, flagged; office hours TBA)",
+      "file": "private-CSE 200 Syllabus - Fall '26 (1).pdf",
+      "kind": "file",
+      "mimeType": "application/pdf",
+      "events": [
+        {
+          "title": "Grading option change deadline",
+          "start": "2026-11-29",
+          "end": "2026-11-29",
+          "category": "deadline"
+        },
+        {
+          "title": "Weekly lecture, Tuesdays 5:20-6:55 PM (no dates given -> flagged)",
+          "start": "T17:20",
+          "end": "T18:55",
+          "category": "class",
+          "flagged": true,
+          "recurrence": {
+            "byday": [
+              "TU"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "hw-test-dates-text",
+      "about": "Homework due dates + test windows, a table copied as one flattened line, NO YEAR (dates like 10/02, 10/12 - 10/16); 'All deadlines are 12 noon'. It's the current fall term, so 2026.",
+      "file": "exam_dates.txt",
+      "kind": "text",
+      "events": [
+        {
+          "title": "HW0 due",
+          "start": "2026-10-02T12:00",
+          "end": "2026-10-02",
+          "category": "deadline",
+          "allDay": false
+        },
+        {
+          "title": "HW1 due",
+          "start": "2026-10-16T12:00",
+          "end": "2026-10-16",
+          "category": "deadline",
+          "allDay": false
+        },
+        {
+          "title": "HW2 due",
+          "start": "2026-11-04T12:00",
+          "end": "2026-11-04",
+          "category": "deadline",
+          "allDay": false
+        },
+        {
+          "title": "HW3 due",
+          "start": "2026-11-13T12:00",
+          "end": "2026-11-13",
+          "category": "deadline",
+          "allDay": false
+        },
+        {
+          "title": "HW Extra due",
+          "start": "2026-11-20T12:00",
+          "end": "2026-11-20",
+          "category": "deadline",
+          "allDay": false
+        },
+        {
+          "title": "HW4 due",
+          "start": "2026-11-30T12:00",
+          "end": "2026-11-30",
+          "category": "deadline",
+          "allDay": false
+        },
+        {
+          "title": "Test window 1",
+          "start": "2026-10-12",
+          "end": "2026-10-16",
+          "category": "exam"
+        },
+        {
+          "title": "Test window 2",
+          "start": "2026-10-26",
+          "end": "2026-10-30",
+          "category": "exam"
+        },
+        {
+          "title": "Test window 3 (HW3 and HW Extra share it)",
+          "start": "2026-11-16",
+          "end": "2026-11-20",
+          "category": "exam"
+        },
+        {
+          "title": "Test window 4",
+          "start": "2026-11-30",
+          "end": "2026-12-04",
+          "category": "exam"
+        }
+      ]
+    },
+    {
+      "name": "ska-flyer-photo",
+      "about": "Photo of a paper concert flyer on a wall (JPG). 11/4/26, doors 6:30 / music 7:30, Shanty Shack Brewing.",
+      "file": "TestPoster1.jpg",
+      "kind": "file",
+      "mimeType": "image/jpeg",
+      "events": [
+        {
+          "title": "Ska at the Shack",
+          "start": "2026-11-04T1",
+          "end": "2026-11-04",
+          "allDay": false
+        }
+      ]
+    },
+    {
+      "name": "forum-flyer-png",
+      "about": "Digital event flyer (PNG). Nov. 17th 2:30-4:30 PM, Cultural Center at Merrill. No year.",
+      "file": "Forum(English).png",
+      "kind": "file",
+      "mimeType": "image/png",
+      "events": [
+        {
+          "title": "Let's Talk B-Cycle and Parking Prices",
+          "start": "2026-11-17T14:30",
+          "end": "2026-11-17T16:30",
+          "allDay": false
+        }
+      ]
+    },
+    {
+      "name": "hackathon-screenshot",
+      "about": "Screenshot of a two-day hackathon schedule web page (Nov 14-15, 2026, 'All times Pacific'). Sub-agenda items and guest hours are OK but not required.",
+      "file": "hackathon-schedule.png",
+      "kind": "screenshot",
+      "mimeType": "image/png",
+      "timeZone": "America/Los_Angeles",
+      "okExtras": [
+        "prepared questions",
+        "audience q&a",
+        "networking & time",
+        "guest hours",
+        "devika",
+        "niranjan",
+        "speaker availability",
+        "weekend schedule",
+        "november 14"
+      ],
+      "events": [
+        {
+          "title": "Day 1 Check-in",
+          "start": "2026-11-14T09:00",
+          "end": "2026-11-14T10:00",
+          "allDay": false
+        },
+        {
+          "title": "Opening ceremony",
+          "start": "2026-11-14T09:30",
+          "end": "2026-11-14T10:00"
+        },
+        {
+          "title": "In-person speaker panel",
+          "start": "2026-11-14T10:00",
+          "end": "2026-11-14T11:30"
+        },
+        {
+          "title": "Hacking begins & lunch",
+          "start": "2026-11-14T11:30",
+          "end": "2026-11-14T"
+        },
+        {
+          "title": "Workshop with Austin Bennett",
+          "start": "2026-11-14T14:00",
+          "end": "2026-11-14T"
+        },
+        {
+          "title": "Workshop with Gretchen Boria",
+          "start": "2026-11-14T16:00",
+          "end": "2026-11-14T"
+        },
+        {
+          "title": "Day 1 wrap-up",
+          "start": "2026-11-14T18:30",
+          "end": "2026-11-14T19:00"
+        },
+        {
+          "title": "Day 2 Check-in",
+          "start": "2026-11-15T09:00",
+          "end": "2026-11-15T09:30"
+        },
+        {
+          "title": "Final touches & project submissions",
+          "start": "2026-11-15T11:00",
+          "end": "2026-11-15T11:30"
+        },
+        {
+          "title": "Judging",
+          "start": "2026-11-15T11:30",
+          "end": "2026-11-15T13:00"
+        },
+        {
+          "title": "Lunch & networking",
+          "start": "2026-11-15T13:30",
+          "end": "2026-11-15T14:00"
+        },
+        {
+          "title": "Virtual speaker session",
+          "start": "2026-11-15T13:45",
+          "end": "2026-11-15T14:45"
+        },
+        {
+          "title": "Prizes & closing ceremony",
+          "start": "2026-11-15T15:00",
+          "end": "2026-11-15T16:00"
+        }
+      ]
+    },
+    {
+      "name": "unity-itinerary-pdf",
+      "about": "Event run-of-show PDF (4 pages of tables: agenda, tech times, show order). Times only, NO DATE anywhere -> every event must be flagged. Key = the Agenda Overview times; tech/show-order rows are OK extras.",
+      "file": "Unity 2026 Itinerary .pdf",
+      "kind": "file",
+      "mimeType": "application/pdf",
+      "allowExtras": true,
+      "allFlagged": true,
+      "events": [
+        {
+          "title": "Committee setup @ Porter Dining Hall",
+          "start": "T12:00"
+        },
+        {
+          "title": "Org Arrivals",
+          "start": "T13:30"
+        },
+        {
+          "title": "Tech (15 minutes each)",
+          "start": "T13:45",
+          "end": "T16:15"
+        },
+        {
+          "title": "Last minute announcements / extra tech",
+          "start": "T16:15",
+          "end": "T16:55"
+        },
+        {
+          "title": "Doors open",
+          "start": "T17:00"
+        },
+        {
+          "title": "Show starts",
+          "start": "T17:30"
+        },
+        {
+          "title": "Intermission/Dinner",
+          "start": "T18:55"
+        },
+        {
+          "title": "Intermission over",
+          "start": "T19:40"
+        },
+        {
+          "title": "Show over",
+          "start": "T20:30"
+        },
+        {
+          "title": "House empty, clean up",
+          "start": "T21:00"
+        },
+        {
+          "title": "We're free",
+          "start": "T22:00"
+        }
+      ]
+    }
+  ]
+}

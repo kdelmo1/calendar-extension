@@ -1,0 +1,9 @@
+# Files `gcloud run deploy --source .` must NOT upload to Google Cloud.
+# .env holds the real Gemini key: it must never be uploaded.
+.env
+.env.*
+node_modules/
+out/
+scripts/
+.gcloudignore
+.git

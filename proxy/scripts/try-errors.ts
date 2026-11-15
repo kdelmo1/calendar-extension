@@ -1,0 +1,368 @@
+// Tests every way Gemini can fail, using a FAKE Gemini on this computer.
+// No real Gemini calls, no API key, no quota used. Takes about 15 seconds.
+//
+// Usage (you do NOT need `npm run dev` running for this one):
+//   npm run try:errors
+//
+// How it works:
+//   1. Start a fake Gemini server. Each test puts "SCENARIO:<name>" in its text,
+//      and the fake answers according to that scenario (503, 429, junk, never answer...).
+//   2. Start our real proxy on port 8091, pointed at the fake (GEMINI_BASE_URL).
+//   3. Send each scenario to the proxy and check the AppError (or result) it returns,
+//      and which models it called (to check retries and the backup model).
+
+import { spawn } from "node:child_process";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { AppError, ParseResult } from "../src/types.js";
+
+const PROXY_PORT = 8091;
+const PROXY = `http://localhost:${PROXY_PORT}`;
+const TIMEOUT_MS = 3000; // short timeout so the "never answers" test is quick
+
+// ---------- 1. the fake Gemini ----------
+
+const goodEvent = {
+  sourceText: "Quarter begins Jan. 4, 2027", title: "Quarter begins", allDay: true,
+  start: "2027-01-04", end: "2027-01-04", recurrence: null, location: null, description: null,
+  category: "event", yearSource: "written", unsure: false, confidence: 0.95,
+};
+const geminiReply = (result: unknown, finishReason = "STOP") => ({
+  candidates: [{ finishReason, content: { parts: [{ text: typeof result === "string" ? result : JSON.stringify(result) }] } }],
+});
+const okResult = { calendarName: "Test", timeZone: "America/Los_Angeles", events: [goodEvent] };
+
+const calls: Record<string, string[]> = {}; // scenario -> models called, in order
+
+function answer(scenario: string, model: string, res: ServerResponse, inputText: string) {
+  const send = (status: number, body: unknown) => {
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(body));
+  };
+  const busy = () => send(503, { error: { code: 503, message: "high demand", status: "UNAVAILABLE" } });
+  const limited = () => send(429, { error: { code: 429, message: "quota", status: "RESOURCE_EXHAUSTED" } });
+  const isMain = model === "fake-main";
+  const callNumber = calls[scenario].length;
+
+  switch (scenario) {
+    case "ok": return send(200, geminiReply(okResult));
+    case "busy-once": return callNumber === 1 ? busy() : send(200, geminiReply(okResult));
+    case "busy-main": return isMain ? busy() : send(200, geminiReply(okResult));
+    case "busy-all": return busy();
+    case "ratelimit-main": return isMain ? limited() : send(200, geminiReply(okResult));
+    case "ratelimit-all": return limited();
+    case "never-answers": return; // just hang
+    case "no-events": return send(200, geminiReply({ ...okResult, events: [] }));
+    case "junk": return send(200, geminiReply("Sure! Here are your events: ..."));
+    case "cut-off": return send(200, geminiReply('{"calendarName":"Test","events":[{"title":"Qu', "MAX_TOKENS"));
+    case "blocked": return send(200, { candidates: [{ finishReason: "SAFETY" }] });
+    case "bad-key": return send(403, { error: { code: 403, message: "API key not valid", status: "PERMISSION_DENIED" } });
+    case "bad-request": return send(400, { error: { code: 400, message: "Unable to process input image", status: "INVALID_ARGUMENT" } });
+    case "bad-dates": return send(200, geminiReply({ ...okResult, events: [{ ...goodEvent, start: "sometime" }, { ...goodEvent, start: "2027-02-30" }] }));
+    case "some-bad-dates": return send(200, geminiReply({
+      ...okResult,
+      timeZone: "PST", // not a real IANA name -> should become America/Los_Angeles
+      events: [
+        goodEvent,
+        { ...goodEvent, start: "2027-02-30", end: "2027-02-30" }, // no such day -> dropped
+        { ...goodEvent, allDay: false, start: "2027-01-08T18:00", end: "2027-01-08T17:00" }, // end before start -> start + 1 h
+      ],
+    }));
+    case "rrule": return send(200, geminiReply({
+      ...okResult,
+      events: [
+        // Starts on a MONDAY but repeats Tue/Thu; UNTIL is just a day -> start moved, UNTIL made UTC
+        { ...goodEvent, title: "Lectures", allDay: false, start: "2027-01-04T09:50", end: "2027-01-04T11:25",
+          recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270311" },
+        // Not a real rule -> dropped, the event stays as a one-time event
+        { ...goodEvent, title: "Club", allDay: false, start: "2027-01-06T18:00", end: "2027-01-06T19:00",
+          recurrence: "every wednesday" },
+        // Repeats, but its source text has no date -> must be flagged even though Gemini says 0.95
+        { ...goodEvent, title: "Seminar", allDay: false, start: "2026-09-22T17:20", end: "2026-09-22T18:55",
+          recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TU", sourceText: "Lectures: Tuesdays, 5:20 PM – 6:55 PM", confidence: 0.95 },
+      ],
+    }));
+    // ----- /edit (function calling): Gemini answers with function calls instead of JSON -----
+    case "edit-ok": {
+      const call = (name: string, args: object) => ({ functionCall: { name, args } });
+      return send(200, { candidates: [{ finishReason: "STOP", content: { parts: [
+        call("update_events", { updates: [
+          { id: "e1", start: "2027-03-16" }, // only a new start: the end should move with it
+          { id: "e3", start: "2027-02-30" }, // impossible date: skipped
+          { id: "e99", title: "ghost" }, // no such event: ignored
+        ] }),
+        call("delete_events", { ids: ["e2", "e2", "e42"] }), // duplicate + unknown id: deleted once
+        call("add_events", { events: [{ title: "Study group", allDay: false, start: "2027-01-07T19:00", end: "2027-01-07T21:00",
+          location: "McHenry Library", recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TH;UNTIL=20270311" }] }),
+      ] } }] });
+    }
+    case "edit-filter": {
+      const call = (name: string, args: object) => ({ functionCall: { name, args } });
+      return send(200, { candidates: [{ finishReason: "STOP", content: { parts: [
+        call("delete_events", { startsBefore: "2027-03-01", categories: ["holiday"] }), // holidays before March
+        call("delete_events", { startsBefore: "2027-03-01", startsAfter: "2027-03-20" }), // outside Mar 1-20
+      ] } }] });
+    }
+    case "edit-question":
+      return send(200, { candidates: [{ finishReason: "STOP", content: { parts: [{ text: "Which midterm do you mean?" }] } }] });
+    case "repeat-and-dated": {
+      // Tue/Thu lectures in Fall 2026: Sep 24 (Thu), Sep 29 (Tue), Oct 1 (Thu), and an exam row on Tue Oct 6
+      const row = (start: string, title: string, category = "class") =>
+        ({ ...goodEvent, title, category, start, end: start, sourceText: `${start} ${title}` });
+      return send(200, geminiReply({
+        ...okResult,
+        events: [
+          { ...goodEvent, title: "Lecture", category: "class", allDay: false, start: "2026-09-24T09:50", end: "2026-09-24T11:25",
+            recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20261203", sourceText: "T/TH 9:50 - 11:25AM, 09/24/26 - 12/04/26" },
+          row("2026-09-24", "Introduction"), row("2026-09-29", "Variables"), row("2026-10-01", "Types"),
+          row("2026-10-06", "Midterm", "exam"),
+        ],
+      }));
+    }
+    case "big": {
+      // One event per line under "LINES TO READ", plus one from line 1 (a context-only
+      // line in pieces 2 and 3) that the merge step should throw away.
+      const own = [...inputText.split("LINES TO READ:")[1].matchAll(/^L(\d+):/gm)].map((m) => Number(m[1]));
+      const lineNumbers = own.includes(1) ? own : [...own, 1];
+      const events = lineNumbers.map((n) => ({ ...goodEvent, sourceText: undefined, lines: [n], title: `Row ${n}` }));
+      return send(200, geminiReply({ ...okResult, events }));
+    }
+    default: return send(500, { error: { message: `unknown scenario ${scenario}` } });
+  }
+}
+
+const fakeGemini = createServer((req: IncomingMessage, res: ServerResponse) => {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", () => {
+    const model = req.url?.match(/models\/([^:]+):/)?.[1] ?? "?";
+    const scenario = body.match(/SCENARIO:([\w-]+)/)?.[1] ?? "?";
+    (calls[scenario] ??= []).push(model);
+    const inputText: string = JSON.parse(body)?.contents?.[0]?.parts?.[0]?.text ?? "";
+    answer(scenario, model, res, inputText);
+  });
+});
+await new Promise<void>((resolve) => fakeGemini.listen(0, "127.0.0.1", resolve));
+const fakePort = (fakeGemini.address() as AddressInfo).port;
+
+// ---------- 2. our proxy, pointed at the fake ----------
+
+const proxyLog: string[] = [];
+const proxy = spawn(process.execPath, ["--import", "tsx", "src/server.ts"], {
+  cwd: new URL("..", import.meta.url).pathname,
+  env: {
+    ...process.env,
+    PORT: String(PROXY_PORT),
+    GEMINI_API_KEY: "fake-key",
+    GEMINI_BASE_URL: `http://127.0.0.1:${fakePort}`,
+    GEMINI_MODEL: "fake-main",
+    GEMINI_BACKUP_MODEL: "fake-backup",
+    PARSE_TIMEOUT_MS: String(TIMEOUT_MS),
+  },
+});
+proxy.stdout.on("data", (d) => proxyLog.push(String(d)));
+proxy.stderr.on("data", (d) => proxyLog.push(String(d)));
+
+async function waitForProxy() {
+  for (let i = 0; i < 50; i++) {
+    try {
+      if ((await fetch(`${PROXY}/health`)).ok) return;
+    } catch {
+      // not up yet
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  console.log("Proxy did not start. Its output:\n" + proxyLog.join(""));
+  process.exit(1);
+}
+await waitForProxy();
+
+// ---------- 3. the tests ----------
+
+type Test = {
+  scenario: string;
+  text?: string; // input text (default: just the scenario line)
+  what: string;
+  status: number;
+  code?: AppError["code"];
+  models?: string[]; // which models should have been called, in order
+  path?: string; // default "/parse"
+  body?: object; // default: a text capture with the scenario in it
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  check?: (r: any) => string | null; // extra check on a successful result
+};
+
+// A small event list for the /edit tests (ids are fixed so the checks can find them).
+const editEvent = (id: string, title: string, start: string, end: string, category: string, confidence = 0.95) =>
+  ({ id, title, allDay: true, start, end, recurrence: null, location: null, description: null, category, confidence, sourceText: title });
+const editEvents = [
+  editEvent("id-finals", "Final Examinations", "2027-03-15", "2027-03-19", "exam", 0.6),
+  editEvent("id-presidents", "Presidents Day", "2027-02-15", "2027-02-15", "holiday"),
+  editEvent("id-grades", "Grades Due", "2027-03-23", "2027-03-23", "deadline"),
+];
+
+const M = "fake-main";
+const B = "fake-backup";
+const tests: Test[] = [
+  { scenario: "ok", what: "normal answer", status: 200, models: [M] },
+  { scenario: "busy-once", what: "503 once, then OK -> retried", status: 200, models: [M, M] },
+  { scenario: "busy-main", what: "main model stays busy -> backup model", status: 200, models: [M, M, B] },
+  { scenario: "busy-all", what: "both models busy -> RATE_LIMIT", status: 429, code: "RATE_LIMIT", models: [M, M, B, B] },
+  { scenario: "ratelimit-main", what: "429 on main -> backup right away", status: 200, models: [M, B] },
+  { scenario: "ratelimit-all", what: "429 on both -> RATE_LIMIT", status: 429, code: "RATE_LIMIT", models: [M, B] },
+  { scenario: "never-answers", what: `no answer in ${TIMEOUT_MS / 1000} s -> TIMEOUT`, status: 504, code: "TIMEOUT", models: [M] },
+  { scenario: "no-events", what: "zero events -> NO_DATES", status: 422, code: "NO_DATES" },
+  { scenario: "junk", what: "not JSON -> PARSE_FAILED", status: 502, code: "PARSE_FAILED", models: [M] },
+  { scenario: "cut-off", what: "answer too long, cut off -> PARSE_FAILED", status: 502, code: "PARSE_FAILED", models: [M] },
+  { scenario: "blocked", what: "safety-blocked, no text -> PARSE_FAILED", status: 502, code: "PARSE_FAILED", models: [M] },
+  { scenario: "bad-key", what: "403 bad key -> PARSE_FAILED, no retry", status: 502, code: "PARSE_FAILED", models: [M] },
+  { scenario: "bad-request", what: "400 bad input -> PARSE_FAILED, no retry", status: 502, code: "PARSE_FAILED", models: [M] },
+  { scenario: "bad-dates", what: "every date unusable -> PARSE_FAILED", status: 502, code: "PARSE_FAILED" },
+  {
+    scenario: "some-bad-dates",
+    what: "bad date dropped, bad end fixed, bad time zone fixed",
+    status: 200,
+    check: (r: ParseResult) => {
+      if (r.events.length !== 2) return `expected 2 events, got ${r.events.length}`;
+      if (r.events[1].end !== "2027-01-08T19:00:00") return `end should be fixed to 19:00, got ${r.events[1].end}`;
+      if (r.timeZone !== "America/Los_Angeles") return `timeZone should be America/Los_Angeles, got ${r.timeZone}`;
+      return null;
+    },
+  },
+  {
+    scenario: "rrule",
+    text: "SCENARIO:rrule (Winter 2027)", // has a year, so only the undated repeat should be flagged
+    what: "repeat rule: first meeting moved to Tue, UNTIL made UTC, junk rule dropped, undated repeat flagged",
+    status: 200,
+    check: (r: ParseResult) => {
+      const [lectures, club, seminar] = r.events;
+      if (seminar.confidence >= 0.7) return `undated repeating event should be flagged, got ${seminar.confidence}`;
+      if (lectures.confidence < 0.7) return `dated repeating event should not be flagged, got ${lectures.confidence}`;
+      if (lectures.start !== "2027-01-05T09:50:00" || lectures.end !== "2027-01-05T11:25:00") {
+        return `lectures should move to Tue 2027-01-05, got ${lectures.start} -> ${lectures.end}`;
+      }
+      // 23:59:59 on Mar 11 in Los Angeles (UTC-8 in March before DST) = 07:59:59 UTC on Mar 12
+      if (lectures.recurrence !== "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270312T075959Z") return `got ${lectures.recurrence}`;
+      if (club.recurrence !== null) return `junk rule should be dropped, got ${club.recurrence}`;
+      return null;
+    },
+  },
+  {
+    scenario: "repeat-and-dated",
+    text: "SCENARIO:repeat-and-dated (Fall 2026)",
+    what: "repeating lecture + 3 dated lecture rows -> repeat dropped, rows get its time",
+    status: 200,
+    check: (r: ParseResult) => {
+      if (r.events.some((e) => e.recurrence)) return "the repeating lecture should be dropped";
+      if (r.events.length !== 4) return `expected 3 lectures + 1 exam, got ${r.events.length}`;
+      const lectures = r.events.filter((e) => e.category === "class");
+      if (!lectures.every((e) => !e.allDay && e.start.endsWith("T09:50:00") && e.end.endsWith("T11:25:00"))) {
+        return `dated lectures should get 09:50-11:25, got ${lectures.map((e) => `${e.start}->${e.end}`).join(", ")}`;
+      }
+      const exam = r.events.find((e) => e.category === "exam")!;
+      if (!exam.allDay) return "the exam row should keep its own (all-day) time";
+      return null;
+    },
+  },
+  {
+    scenario: "edit-ok",
+    path: "/edit",
+    body: { events: editEvents, instruction: "SCENARIO:edit-ok", calendarName: "UCSC Winter 2027" },
+    what: "/edit: update (end moves too), delete, add repeating; bad date + unknown ids skipped",
+    status: 200,
+    models: [M],
+    check: (a: { result: ParseResult; summary: string }) => {
+      const ev = a.result.events;
+      if (ev.length !== 3) return `expected 3 events (1 deleted, 1 added), got ${ev.length}`;
+      const finals = ev.find((e) => e.id === "id-finals");
+      if (finals?.start !== "2027-03-16" || finals.end !== "2027-03-20") return `finals should be 03-16..03-20, got ${finals?.start}..${finals?.end}`;
+      if (finals.confidence !== 0.95) return `edited event should no longer be flagged, got ${finals.confidence}`;
+      if (ev.some((e) => e.id === "id-presidents")) return "Presidents Day should be deleted";
+      if (ev.find((e) => e.id === "id-grades")?.start !== "2027-03-23") return "Grades Due should be unchanged";
+      const added = ev.find((e) => e.title === "Study group");
+      if (added?.recurrence !== "RRULE:FREQ=WEEKLY;BYDAY=TH;UNTIL=20270312T075959Z") return `added event rule: ${added?.recurrence}`;
+      if (a.result.calendarName !== "UCSC Winter 2027") return `calendarName lost: ${a.result.calendarName}`;
+      if (!/Updated 1 event.*Deleted 1 event.*Added 1 event.*Skipped/.test(a.summary)) return `summary: ${a.summary}`;
+      return null;
+    },
+  },
+  {
+    scenario: "edit-filter",
+    path: "/edit",
+    body: { events: editEvents, instruction: "SCENARIO:edit-filter" },
+    what: "/edit: delete by filters (holidays before Mar 1; outside Mar 1-20) -> only finals left",
+    status: 200,
+    check: (a: { result: ParseResult; summary: string }) =>
+      a.result.events.map((e) => e.id).join(",") === "id-finals" ? null : `left: ${a.result.events.map((e) => e.title).join(", ")}`,
+  },
+  {
+    scenario: "edit-question",
+    path: "/edit",
+    body: { events: editEvents, instruction: "SCENARIO:edit-question move the midterm" },
+    what: "/edit: Gemini asks a question instead -> nothing changes, its question is the summary",
+    status: 200,
+    check: (a: { result: ParseResult; summary: string }) =>
+      a.result.events.length === 3 && a.summary === "Which midterm do you mean?" ? null : `got ${a.result.events.length} events, "${a.summary}"`,
+  },
+  {
+    scenario: "edit-empty",
+    path: "/edit",
+    body: { events: editEvents, instruction: "   " },
+    what: "/edit: empty instruction -> PARSE_FAILED, Gemini not called",
+    status: 400,
+    code: "PARSE_FAILED",
+    models: [],
+  },
+  {
+    scenario: "big",
+    // 100 lines: big enough to be split into 3 parallel parts
+    text: ["SCENARIO:big", ...Array.from({ length: 99 }, (_, i) => `Row ${i + 2} | Jan. 4, 2027`)].join("\n"),
+    what: "100-line input -> 3 parallel parts, merged, no duplicates",
+    status: 200,
+    models: [M, M, M],
+    check: (r: ParseResult) => {
+      if (r.events.length !== 100) return `expected 100 events (one per line), got ${r.events.length}`;
+      const row50 = r.events.find((e) => e.title === "Row 50");
+      if (row50?.sourceText !== "Row 50 | Jan. 4, 2027") return `sourceText for line 50 was "${row50?.sourceText}"`;
+      return null;
+    },
+  },
+];
+
+let passed = 0;
+for (const t of tests) {
+  const started = Date.now();
+  const res = await fetch(`${PROXY}${t.path ?? "/parse"}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(t.body ?? { kind: "text", text: t.text ?? `SCENARIO:${t.scenario}` }),
+  });
+  const body = await res.json();
+  const secs = ((Date.now() - started) / 1000).toFixed(1);
+
+  const problems: string[] = [];
+  if (res.status !== t.status) problems.push(`HTTP ${res.status}, expected ${t.status}`);
+  if (t.code && body.code !== t.code) problems.push(`code ${body.code}, expected ${t.code}`);
+  if (t.models && (calls[t.scenario] ?? []).join(",") !== t.models.join(",")) {
+    problems.push(`called [${calls[t.scenario]?.join(", ")}], expected [${t.models.join(", ")}]`);
+  }
+  if (t.check && res.ok) {
+    const p = t.check(body as ParseResult);
+    if (p) problems.push(p);
+  }
+  if (t.scenario === "never-answers" && Number(secs) > TIMEOUT_MS / 1000 + 1) problems.push(`took ${secs} s`);
+
+  if (problems.length === 0) passed++;
+  const events = (body.result ?? body).events;
+  const shown = res.ok ? `${events?.length} events${body.summary ? ` | "${body.summary}"` : ""}` : `${body.code}: "${body.message}"`;
+  console.log(`${problems.length ? "FAIL" : "PASS"}  ${t.what}  (${secs} s)  -> ${shown}`);
+  for (const p of problems) console.log(`      ✗ ${p}`);
+}
+
+console.log(`\n${passed}/${tests.length} cases passed.`);
+if (passed < tests.length) console.log("\nProxy log:\n" + proxyLog.join(""));
+
+proxy.kill();
+fakeGemini.closeAllConnections();
+fakeGemini.close();
+process.exit(passed === tests.length ? 0 : 1);
