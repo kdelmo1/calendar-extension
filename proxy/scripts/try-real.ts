@@ -62,7 +62,7 @@ for (const [index, input] of selected.entries()) {
   if (problems.length) report.push(...problems.map((p) => `- ${p}`), ``);
   report.push(`<details><summary>All events</summary>`, ``);
   for (const e of events) {
-    report.push(`- ${short(e)} [${e.category}] ${e.title}${e.allDay ? "" : " (timed)"}${e.confidence < 0.7 ? ` ⚠️ ${e.confidence}` : ""}`);
+    report.push(`- ${short(e)} [${e.category}] ${e.title}${e.allDay ? "" : " (timed)"}${e.recurrence ? ` ↻ ${e.recurrence}` : ""}${e.confidence < 0.7 ? ` ⚠️ ${e.confidence}` : ""}`);
   }
   report.push(``, `</details>`, ``);
 }

@@ -17,7 +17,28 @@ export type Expected = {
   allDay?: boolean;
   title?: string;
   optional?: boolean;
+  flagged?: boolean; // must be flagged for review (confidence < 0.7)
+  recurrence?: ExpectedRecurrence; // leave out = the event must NOT repeat
 };
+
+// A repeating event: weekly on exactly these days, and (optional) its rule contains one of `any`
+// (e.g. ["COUNT=6", "UNTIL=2027031"] accepts either way of saying "6 weeks").
+export type ExpectedRecurrence = { byday: string[]; any?: string[] };
+
+// What's wrong with an event's recurrence, or null if it's right.
+export function recurrenceProblem(got: CalendarEvent, want?: ExpectedRecurrence): string | null {
+  const rule = got.recurrence;
+  if (!want) return rule ? `"${got.title}" should not repeat, got ${rule}` : null;
+  if (!rule) return `"${got.title}" should repeat weekly on ${want.byday.join(",")}, but doesn't repeat`;
+  const days = rule.match(/BYDAY=([^;]+)/)?.[1].split(",").sort().join(",");
+  if (!rule.includes("FREQ=WEEKLY") || days !== [...want.byday].sort().join(",")) {
+    return `"${got.title}" should repeat weekly on ${want.byday.join(",")}, got ${rule}`;
+  }
+  if (want.any && !want.any.some((s) => rule.includes(s))) {
+    return `"${got.title}" rule ${rule} should contain one of: ${want.any.join(" / ")}`;
+  }
+  return null;
+}
 
 export type RealInput = {
   name: string;
@@ -50,7 +71,7 @@ export const short = (e: { start: string; end?: string }) =>
   e.end && e.end !== e.start ? `${e.start} → ${e.end}` : e.start;
 
 // Does Gemini's date/time `got` match the expected `want` (see Expected above)?
-const fits = (got: string, want: string) => (want.startsWith("T") ? got.slice(10) : got).startsWith(want);
+export const fits = (got: string, want: string) => (want.startsWith("T") ? got.slice(10) : got).startsWith(want);
 
 // Returns everything wrong with `result` compared to the answer key. Empty list = "needs no fixes".
 export function checkResult(input: RealInput, result: ParseResult): string[] {
@@ -88,6 +109,11 @@ export function checkResult(input: RealInput, result: ParseResult): string[] {
     if (want.allDay !== undefined && got.allDay !== want.allDay) {
       problems.push(`allDay for "${got.title}": got ${got.allDay}, expected ${want.allDay}`);
     }
+    if (want.flagged && got.confidence >= 0.7) {
+      problems.push(`"${got.title}" should be flagged for review, confidence ${got.confidence}`);
+    }
+    const rr = recurrenceProblem(got, want.recurrence);
+    if (rr) problems.push(rr);
   }
 
   if (!input.allowExtras) {

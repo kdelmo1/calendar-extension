@@ -66,3 +66,28 @@ Caveats:
 - `forum-flyer-png` has no year ("Nov. 17th") but was not flagged in run 3 (it was in run 1).
   The date is right, and the key doesn't require a flag, so it passes. For images our code can't
   check the year itself (for text it can, see `yearIsMissing` in parse.ts).
+
+## Optional task: repeating events (RRULE)
+
+Decisions: in syllabi only class meetings repeat (not office hours or lists of alternative
+sections); a dated schedule gets no extra repeating lecture; a weekly meeting with no dates is
+added but flagged. Answer key change: `cse200-syllabus-pdf` now also expects its weekly Tuesday
+lecture (repeating, flagged).
+
+| Problem found | Fix |
+|---|---|
+| Dated schedule + "Lectures MW 3:20" → repeating lecture on top of the dated rows | Prompt: check for a dated schedule FIRST; give dated rows the class time |
+| Dated lecture rows came back all-day | Prompt: lecture rows on class days are timed events |
+| CSE 20: one of 5 alternative sections as a one-time event | Prompt: skip alternative sections completely |
+| Test windows labelled `event` | Prompt: test windows are `exam` |
+| Timed events ending after 1 hour (end left out) | Prompt: always give `end` for timed events (this came from the task 6 speed change) |
+| CSE 200 weekly lecture not flagged (Gemini "knew" the term dates) | Code: a repeating event whose source text has no date is always flagged |
+| CSE 20 split into 3 parts: the part with "T/TH 9:50" can't see the dated schedule | Code: drop a repeating class event when 3+ dated class rows cover its days; give them its time |
+
+Results after all fixes: `try:prompt` 17/17, `try:files` 10/10, `try:errors` 18/18,
+`try:real` 9/10 and 9/10 in two runs (8, 9, 8, 9, 9 over the last five runs).
+
+Still flaky (passes most runs, fails some):
+- `cse201-syllabus-pdf`: "HW1/2/3/4 released" sometimes get borrowed dates again. It's a PDF, so
+  our code can't double-check the source lines.
+- `hw-test-dates-text`: "All deadlines are 12 noon" sometimes ignored (all-day instead of 12:00).

@@ -68,6 +68,34 @@ function answer(scenario: string, model: string, res: ServerResponse, inputText:
         { ...goodEvent, allDay: false, start: "2027-01-08T18:00", end: "2027-01-08T17:00" }, // end before start -> start + 1 h
       ],
     }));
+    case "rrule": return send(200, geminiReply({
+      ...okResult,
+      events: [
+        // Starts on a MONDAY but repeats Tue/Thu; UNTIL is just a day -> start moved, UNTIL made UTC
+        { ...goodEvent, title: "Lectures", allDay: false, start: "2027-01-04T09:50", end: "2027-01-04T11:25",
+          recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270311" },
+        // Not a real rule -> dropped, the event stays as a one-time event
+        { ...goodEvent, title: "Club", allDay: false, start: "2027-01-06T18:00", end: "2027-01-06T19:00",
+          recurrence: "every wednesday" },
+        // Repeats, but its source text has no date -> must be flagged even though Gemini says 0.95
+        { ...goodEvent, title: "Seminar", allDay: false, start: "2026-09-22T17:20", end: "2026-09-22T18:55",
+          recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TU", sourceText: "Lectures: Tuesdays, 5:20 PM – 6:55 PM", confidence: 0.95 },
+      ],
+    }));
+    case "repeat-and-dated": {
+      // Tue/Thu lectures in Fall 2026: Sep 24 (Thu), Sep 29 (Tue), Oct 1 (Thu), and an exam row on Tue Oct 6
+      const row = (start: string, title: string, category = "class") =>
+        ({ ...goodEvent, title, category, start, end: start, sourceText: `${start} ${title}` });
+      return send(200, geminiReply({
+        ...okResult,
+        events: [
+          { ...goodEvent, title: "Lecture", category: "class", allDay: false, start: "2026-09-24T09:50", end: "2026-09-24T11:25",
+            recurrence: "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20261203", sourceText: "T/TH 9:50 - 11:25AM, 09/24/26 - 12/04/26" },
+          row("2026-09-24", "Introduction"), row("2026-09-29", "Variables"), row("2026-10-01", "Types"),
+          row("2026-10-06", "Midterm", "exam"),
+        ],
+      }));
+    }
     case "big": {
       // One event per line under "LINES TO READ", plus one from line 1 (a context-only
       // line in pieces 2 and 3) that the merge step should throw away.
@@ -163,6 +191,41 @@ const tests: Test[] = [
       if (r.events.length !== 2) return `expected 2 events, got ${r.events.length}`;
       if (r.events[1].end !== "2027-01-08T19:00:00") return `end should be fixed to 19:00, got ${r.events[1].end}`;
       if (r.timeZone !== "America/Los_Angeles") return `timeZone should be America/Los_Angeles, got ${r.timeZone}`;
+      return null;
+    },
+  },
+  {
+    scenario: "rrule",
+    text: "SCENARIO:rrule (Winter 2027)", // has a year, so only the undated repeat should be flagged
+    what: "repeat rule: first meeting moved to Tue, UNTIL made UTC, junk rule dropped, undated repeat flagged",
+    status: 200,
+    check: (r) => {
+      const [lectures, club, seminar] = r.events;
+      if (seminar.confidence >= 0.7) return `undated repeating event should be flagged, got ${seminar.confidence}`;
+      if (lectures.confidence < 0.7) return `dated repeating event should not be flagged, got ${lectures.confidence}`;
+      if (lectures.start !== "2027-01-05T09:50:00" || lectures.end !== "2027-01-05T11:25:00") {
+        return `lectures should move to Tue 2027-01-05, got ${lectures.start} -> ${lectures.end}`;
+      }
+      // 23:59:59 on Mar 11 in Los Angeles (UTC-8 in March before DST) = 07:59:59 UTC on Mar 12
+      if (lectures.recurrence !== "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270312T075959Z") return `got ${lectures.recurrence}`;
+      if (club.recurrence !== null) return `junk rule should be dropped, got ${club.recurrence}`;
+      return null;
+    },
+  },
+  {
+    scenario: "repeat-and-dated",
+    text: "SCENARIO:repeat-and-dated (Fall 2026)",
+    what: "repeating lecture + 3 dated lecture rows -> repeat dropped, rows get its time",
+    status: 200,
+    check: (r) => {
+      if (r.events.some((e) => e.recurrence)) return "the repeating lecture should be dropped";
+      if (r.events.length !== 4) return `expected 3 lectures + 1 exam, got ${r.events.length}`;
+      const lectures = r.events.filter((e) => e.category === "class");
+      if (!lectures.every((e) => !e.allDay && e.start.endsWith("T09:50:00") && e.end.endsWith("T11:25:00"))) {
+        return `dated lectures should get 09:50-11:25, got ${lectures.map((e) => `${e.start}->${e.end}`).join(", ")}`;
+      }
+      const exam = r.events.find((e) => e.category === "exam")!;
+      if (!exam.allDay) return "the exam row should keep its own (all-day) time";
       return null;
     },
   },

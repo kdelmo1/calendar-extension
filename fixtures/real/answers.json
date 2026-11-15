@@ -1,5 +1,5 @@
 {
-  "_readme": "Answer keys for the 10 real test inputs (task 9). Run with `npm run try:real` in proxy/. Each input: file (path from this folder), kind (text | file | screenshot), optional mimeType/pageTitle/timeZone, and events = the dates a careful person would add. An expected event matches when Gemini's start/end BEGIN WITH the given strings ('2026-12-10' accepts any time that day; a value starting with 'T' like 'T17:30' checks only the time). end is optional. Optional per event: category, allDay. allowExtras: any extra events are OK. okExtras: extra events are OK if their title or sourceText contains one of these words (things that are fine to add but not required, like office hours). allFlagged: every event must be flagged for review. An input 'needs no fixes' when every expected event is found with the right details and there are no other extra events. Decisions (Nov 14, 2026): every dated syllabus item becomes an event (lectures = class); a schedule with no date gets its events, all flagged for review. optional: true on an expected event = fine if present, not required. Weekly meetings with no specific date (sections, regular office hours, 'Tuesdays 5:20 PM') should NOT become single events on a made-up date.",
+  "_readme": "Answer keys for the 10 real test inputs (task 9). Run with `npm run try:real` in proxy/. Each input: file (path from this folder), kind (text | file | screenshot), optional mimeType/pageTitle/timeZone, and events = the dates a careful person would add. An expected event matches when Gemini's start/end BEGIN WITH the given strings ('2026-12-10' accepts any time that day; a value starting with 'T' like 'T17:30' checks only the time). end is optional. Optional per event: category, allDay. allowExtras: any extra events are OK. okExtras: extra events are OK if their title or sourceText contains one of these words (things that are fine to add but not required, like office hours). allFlagged: every event must be flagged for review. An input 'needs no fixes' when every expected event is found with the right details and there are no other extra events. Decisions (Nov 14, 2026): every dated syllabus item becomes an event (lectures = class); a schedule with no date gets its events, all flagged for review. optional: true on an expected event = fine if present, not required. Weekly meetings with no specific date (sections, regular office hours, 'Tuesdays 5:20 PM') should NOT become single events on a made-up date. recurrence: {byday, any?} = must repeat weekly on those days; leave it out = must NOT repeat. flagged: must be flagged for review. Decisions (repeating events): only class meetings repeat in syllabi (not office hours or lists of alternative sections); a dated schedule gets no extra repeating lecture; a weekly meeting with no dates is added but flagged.",
   "inputs": [
     {
       "name": "ucsc-key-dates",
@@ -560,7 +560,7 @@
     },
     {
       "name": "cse200-syllabus-pdf",
-      "about": "CSE 200 syllabus PDF (9 pages of mostly policy text; one real date: the grading option deadline; weekly Tuesday lectures; office hours TBA)",
+      "about": "CSE 200 syllabus PDF (9 pages of mostly policy text; one real date: the grading option deadline; weekly Tuesday lectures with no start/end dates -> one repeating event, flagged; office hours TBA)",
       "file": "private-CSE 200 Syllabus - Fall '26 (1).pdf",
       "kind": "file",
       "mimeType": "application/pdf",
@@ -570,6 +570,18 @@
           "start": "2026-11-29",
           "end": "2026-11-29",
           "category": "deadline"
+        },
+        {
+          "title": "Weekly lecture, Tuesdays 5:20-6:55 PM (no dates given -> flagged)",
+          "start": "T17:20",
+          "end": "T18:55",
+          "category": "class",
+          "flagged": true,
+          "recurrence": {
+            "byday": [
+              "TU"
+            ]
+          }
         }
       ]
     },

@@ -77,6 +77,26 @@ How confidence works: Gemini also tells us where each year came from (`written` 
 confidence at 0.6 for guessed or unsure dates and 0.9 for years from context, so those get
 flagged for review (< 0.7). If a text input has no year anywhere, every date counts as guessed.
 
+## Repeating events
+
+Weekly meetings become ONE event with a `recurrence` rule (RRULE), which Lane 3 passes to
+Google Calendar. Example: "Lectures Tue/Thu 9:50–11:25, Jan 5 – Mar 11, 2027" →
+start `2027-01-05T09:50:00`, `RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270312T075959Z`.
+
+Rules (decided Nov 14, 2026):
+- In syllabi only class meetings repeat (lectures, labs, a section when only one is listed).
+  Office hours and lists of alternative sections are skipped.
+- If the syllabus lists every lecture by date, there's no repeating lecture; instead each
+  dated lecture row gets the class time.
+- A weekly meeting with no dates starts at the next matching day, ends at a guessed end of
+  term, and is flagged for review.
+
+`src/recurrence.ts` checks every rule Gemini writes: invalid rules are dropped (the event
+stays a one-time event), the first meeting is moved onto one of the rule's days, and `UNTIL`
+for timed events is turned into the UTC time Google requires (23:59:59 on the last day in the
+event's time zone, daylight saving time included). Holidays inside a repeating series are
+not removed (no EXDATE); the dated "no class" events still show them.
+
 ## Errors
 
 Every failure comes back as an `AppError` `{ code, message }`. The message is plain
@@ -192,6 +212,7 @@ Give Lane 1 the URL for `manifest.json`:
 | `src/parse.ts`        | CaptureInput → Gemini message → cleaned ParseResult  |
 | `src/inputs.ts`       | Text / files / images / image URLs → Gemini message  |
 | `src/chunks.ts`       | Splits big text inputs into parallel pieces, merges answers |
+| `src/recurrence.ts`   | Checks and fixes repeating-event rules (RRULEs)      |
 | `src/gemini.ts`       | The one place that calls the Gemini REST API         |
 | `src/prompt.ts`       | Rules we give Gemini (edit this to improve accuracy) |
 | `src/schema.ts`       | JSON shape Gemini must reply with                    |

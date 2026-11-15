@@ -6,9 +6,11 @@
 
 import { readFileSync } from "node:fs";
 import type { AppError, CalendarEvent, ParseResult } from "../src/types.js";
+import { fits, recurrenceProblem, type ExpectedRecurrence } from "./real-check.js";
 
 const SERVER = process.env.PROXY_URL || "http://localhost:8080";
 
+// start/end: Gemini's start/end must BEGIN WITH these ("T13:00" = time only, any date).
 type ExpectedEvent = {
   start: string;
   end: string;
@@ -16,6 +18,7 @@ type ExpectedEvent = {
   allDay?: boolean;
   conf?: string; // ">=0.85" or "<0.7"
   sourceIncludes?: string;
+  recurrence?: ExpectedRecurrence; // leave out = the event must NOT repeat
 };
 type Case = {
   name: string;
@@ -46,7 +49,7 @@ function check(c: Case, status: number, body: ParseResult | AppError): string[] 
   }
 
   for (const want of c.events ?? []) {
-    const got = result.events.find((e) => e.start.startsWith(want.start) && e.end.startsWith(want.end));
+    const got = result.events.find((e) => fits(e.start, want.start) && fits(e.end, want.end));
     const label = `${want.start}..${want.end}`;
     if (!got) {
       problems.push(`missing ${label}`);
@@ -62,12 +65,18 @@ function check(c: Case, status: number, body: ParseResult | AppError): string[] 
     if (want.sourceIncludes && !got.sourceText.includes(want.sourceIncludes)) {
       problems.push(`${label} sourceText "${got.sourceText}" should include "${want.sourceIncludes}"`);
     }
+    const rr = recurrenceProblem(got, want.recurrence);
+    if (rr) problems.push(rr);
   }
   return problems;
 }
 
+// A short pause between cases keeps us under the free tier's 15 requests per minute.
+const PAUSE_MS = 3500;
+
 let passed = 0;
-for (const c of cases) {
+for (const [index, c] of cases.entries()) {
+  if (index > 0) await new Promise((r) => setTimeout(r, PAUSE_MS));
   const started = Date.now();
   const res = await fetch(`${SERVER}/parse`, {
     method: "POST",
@@ -83,7 +92,7 @@ for (const c of cases) {
   if (res.ok) {
     const r = body as ParseResult;
     for (const e of r.events) {
-      console.log(`      ${e.start} .. ${e.end}  [${e.category}] conf ${e.confidence}  ${e.title}  | "${e.sourceText}"`);
+      console.log(`      ${e.start} .. ${e.end}  [${e.category}] conf ${e.confidence}  ${e.title}  | "${e.sourceText}"${e.recurrence ? `  ↻ ${e.recurrence}` : ""}`);
     }
     if (r.timeZone !== "America/Los_Angeles") console.log(`      timeZone: ${r.timeZone}`);
   }

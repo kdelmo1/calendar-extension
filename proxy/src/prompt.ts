@@ -25,11 +25,15 @@ WHAT BECOMES AN EVENT
   and titles. Make events only from the lines under "LINES TO READ".
 - Course schedules: EVERY dated row is an event, including ordinary lecture rows that only list a topic
   (category "class", title = the topic). Do not skip rows because they seem unimportant.
+  If the input says when class meets (e.g. "Lectures MW 3:20–4:55 PM"), every lecture row on those days is
+  a TIMED event at that time (allDay = false, 15:20 to 16:55), not an all-day event. Exams, holidays and
+  deadlines keep their own times.
 - Never borrow a date. Something with no date of its own (for example "HW1 released" written between two
   dated rows, "office hours TBA", "sign up on TBD") is not an event, even if a nearby row has a date.
-- Weekly repeating meetings with no specific date ("Lectures T/TH 9:50", "Section: Mon 8:00 AM",
-  "Office hours: Tuesdays 2 PM") are NOT events: do not put them on a made-up date. But a dated change
-  to them IS an event (for example "office hours moved to 11/18 at 1:30 PM", "cancelled 10/27").
+- Weekly meetings ("Lectures T/TH 9:50", "Section: Mon 8:00 AM", "Office hours: Tuesdays 2 PM") follow
+  the REPEATING EVENTS rules below. Never turn one into a single event on a made-up date.
+  A dated change to them IS its own one-time event (for example "office hours moved to 11/18 at 1:30 PM",
+  "cancelled 10/27").
 - Do not repeat an event. If the same date range for the same thing is listed twice (for example two
   homeworks that share one test window), make ONE event.
 - Skip things with no real date (for example "Varies", "N/A", "by appointment", day counts, policies).
@@ -56,13 +60,33 @@ RANGES AND TIMES
   If there is no end time, make the event one hour long.
 - A timed event over several days ("Fri 6 PM through Sun 2 PM") is one event from the first start to the last end.
 
+REPEATING EVENTS
+- FIRST CHECK: does the input list the class meetings one by one with dates (a course schedule with a row
+  per lecture)? If yes, make NO repeating event for those meetings, because every meeting is already its
+  own dated event. Instead give each dated lecture row the class meeting time (e.g. "Lectures MW 3:20 PM").
+- Something that meets every week (a club every Wednesday, lectures every Tue/Thu) becomes ONE event with a
+  recurrence rule, for example RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270311
+  (BYDAY uses MO TU WE TH FR SA SU; UNTIL is the last day as YYYYMMDD; or COUNT=6 for "6 weeks").
+  start/end = the FIRST meeting's date and times.
+- In a syllabus, only class meetings repeat: lectures, labs, or a discussion section when only ONE section
+  is listed (category "class").
+- Use the dates the input gives (first and last day of class, a quarter's date range like "09/24/26 - 12/04/26").
+  If it gives no dates at all: start on the next matching day on or after today, set UNTIL to your best
+  guess for the end of the term it names (leave UNTIL out if no term is named), and set unsure = true and
+  yearSource = "guessed". Dates you work out yourself (even if you know when that term usually runs) are
+  a guess, so the event must be flagged.
+- Office hours and lists of alternative sections or labs (DIS 01A, 01B, 01C...; a student attends only one)
+  are skipped completely: no repeating event and no one-time event for any of them.
+- Only weekly meetings get a recurrence. Everything else leaves it out.
+
 TIME ZONE
 - If the input names a time zone ("ET", "Eastern", "CST", "PT"), set timeZone to its IANA name
   (for example "America/New_York"). Otherwise use "America/Los_Angeles".
 
 CATEGORY (pick exactly one)
 - "holiday": holidays, breaks, campus closures, and any "no class", "no section", "no meeting" or "cancelled" day.
-- "exam": exams, midterms, finals, quizzes, tests.
+- "exam": exams, midterms, finals, quizzes, tests, and test/exam windows or test dates (a range of days
+  in which a test is taken).
 - "deadline": something is DUE, or it is the LAST day to do something
   (assignments due, add/drop ends, withdraw ends, fees due, applications due, grades due, "deadline").
 - "class": a class meeting, lecture, lab or section session.
@@ -80,10 +104,11 @@ HOW SURE ARE YOU
 
 OTHER FIELDS (keep the answer short: leave out any field that would be empty)
 ${sourceRule}
-- end: leave it out for a one-day all-day event.
+- end: ALWAYS give it for a timed event that has an end time ("5:20 PM – 6:55 PM" -> end at 18:55).
+  Leave it out only for a one-day all-day event.
 - location: a room, building, address or "Zoom" if given; otherwise leave it out.
 - description: leave it out unless the input gives useful details beyond the title (under 20 words).
-- recurrence: leave it out unless the input clearly describes a repeating event.
+- recurrence: only for weekly class meetings (see REPEATING EVENTS); otherwise leave it out.
 - Times: write them as YYYY-MM-DDTHH:MM (no seconds).
 - calendarName: a short name for the whole set, e.g. "UCSC Winter 2027" or "CSE 115A Winter 2027".`;
 }

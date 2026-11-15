@@ -2,16 +2,16 @@
   "name": "ucsd-calendar-pdf",
   "about": "UC San Diego 2026-27 academic calendar PDF (2 pages, dot leaders, weekday + date, years only in section headings)",
   "file": "fixtures/real/2026-2027-AcadAdmin-Calendar.pdf",
-  "savedAt": "2026-11-15T03:20:46.768Z",
+  "savedAt": "2026-11-15T04:19:01.586Z",
   "match": {
     "sha256": "233dc108711a274be3be8face0c87c30dc889b17399753689c0376588055c11a"
   },
   "result": {
-    "calendarName": "UC San Diego 2026-2027 Academic Calendar",
+    "calendarName": "UCSD 2026-2027 Academic Calendar",
     "timeZone": "America/Los_Angeles",
     "events": [
       {
-        "id": "55a83620-8f0d-4790-9e63-7d0bedb82512",
+        "id": "9d94608e-ab80-416f-99f6-8d6a7c928dd1",
         "title": "Fall Quarter Begins",
         "allDay": true,
         "start": "2026-09-21",
@@ -24,7 +24,7 @@
         "sourceText": "Fall Quarter Begins ................................................................... Monday, September 21"
       },
       {
-        "id": "6d3b81f3-089a-45f2-94c2-1fb2a56a3e9c",
+        "id": "c83d9a2f-9474-4178-aab5-32f766416271",
         "title": "Instruction Begins",
         "allDay": true,
         "start": "2026-09-24",
@@ -37,7 +37,7 @@
         "sourceText": "Instruction Begins ..................................................................... Thursday, September 24"
       },
       {
-        "id": "bf609b3e-16df-4acf-bf52-5421657fffbf",
+        "id": "37e12e37-ebaf-43d8-a8ee-404a120eece1",
         "title": "Fifteenth Day of Instruction",
         "allDay": true,
         "start": "2026-10-14",
@@ -50,7 +50,7 @@
         "sourceText": "Fifteenth Day of Instruction… ................................................................... Wednesday, October 14"
       },
       {
-        "id": "071d16d6-70f8-42eb-88a5-7cbf9b137d05",
+        "id": "c2f0f9ea-de09-48b7-8b69-fe93ec3b5132",
         "title": "Veteran’s Day Holiday",
         "allDay": true,
         "start": "2026-11-11",
@@ -63,7 +63,7 @@
         "sourceText": "Veteran’s Day Holiday ................................................................................. Wednesday, November 11"
       },
       {
-        "id": "ff6208d8-5799-4539-955d-7368a8e78a12",
+        "id": "2f8592a0-3f96-4a1c-ae93-c3663e83e64a",
         "title": "Thanksgiving Holiday",
         "allDay": true,
         "start": "2026-11-26",
@@ -76,7 +76,7 @@
         "sourceText": "Thanksgiving Holiday................................................................Thursday-Friday, November 26-27"
       },
       {
-        "id": "5a5e5e8c-6aab-4f74-bea9-9e701c0c3f40",
+        "id": "b60a941b-22b3-4779-bf68-2d8c42cf0130",
         "title": "Instruction Ends",
         "allDay": true,
         "start": "2026-12-04",
@@ -89,7 +89,7 @@
         "sourceText": "Instruction Ends ....................................................................... Friday, December 4"
       },
       {
-        "id": "8ae1115b-b066-4083-adbf-34771a97782c",
+        "id": "d8c095fd-38a0-455c-a660-7f9a4b5142bf",
         "title": "Final Exams",
         "allDay": true,
         "start": "2026-12-05",
@@ -102,7 +102,7 @@
         "sourceText": "Final Exams .............................................................................Saturday-Saturday, December 5-12"
       },
       {
-        "id": "cb2c7d5d-d21b-471e-aa73-e5d5736d8d3a",
+        "id": "7b811614-6aa0-4300-a038-3a426af11497",
         "title": "Fall Quarter Ends",
         "allDay": true,
         "start": "2026-12-12",
@@ -115,7 +115,7 @@
         "sourceText": "Fall Quarter Ends ..................................................................... Saturday, December 12"
       },
       {
-        "id": "68b8520b-0d98-4d10-89a1-69c0e375b38e",
+        "id": "ebe833fb-f545-41f5-ad87-98bb5e706e62",
         "title": "Winter Break",
         "allDay": true,
         "start": "2026-12-24",
@@ -128,7 +128,7 @@
         "sourceText": "Winter Break ............................................................................Thursday-Friday, Dec. 24-25"
       },
       {
-        "id": "85bb4d0a-c329-4ac2-b6fd-e8f26859ab0d",
+        "id": "aaaa88fe-4288-40ec-a4df-09cdddc1cf37",
         "title": "New Year Holiday",
         "allDay": true,
         "start": "2026-12-31",
@@ -141,7 +141,7 @@
         "sourceText": "New Year Holiday ......................................................................Thursday-Friday, Dec. 31-Jan. 1"
       },
       {
-        "id": "4fc8966c-8305-4aaa-a917-e74573b5919c",
+        "id": "00e0c0f5-e25d-4dde-ab4a-093308e840d0",
         "title": "Winter Quarter Begins",
         "allDay": true,
         "start": "2027-01-04",
@@ -154,7 +154,7 @@
         "sourceText": "Winter Quarter Begins ............................................................... Monday, January 4"
       },
       {
-        "id": "13201612-c247-42c2-87fc-b2d0e8ab2f42",
+        "id": "299d588b-8a2b-4d4a-a4de-7494121e7a15",
         "title": "Instruction Begins",
         "allDay": true,
         "start": "2027-01-04",
@@ -167,7 +167,7 @@
         "sourceText": "Instruction Begins ..................................................................... Monday, January 4"
       },
       {
-        "id": "99a133c0-d932-40b1-8b71-9f67c43d5478",
+        "id": "54f55829-fe21-4b2e-bc80-7c6df89966ed",
         "title": "Martin Luther King, Jr. Holiday",
         "allDay": true,
         "start": "2027-01-18",
@@ -180,7 +180,7 @@
         "sourceText": "Martin Luther King, Jr. Holiday ................................................. Monday, January 18"
       },
       {
-        "id": "d68a77d2-fc6c-463b-8837-e94155450b1c",
+        "id": "3ba01b57-cccd-4e9b-b96e-2782ff6f340e",
         "title": "Fifteenth Day of Instruction",
         "allDay": true,
         "start": "2027-01-25",
@@ -193,7 +193,7 @@
         "sourceText": "Fifteenth Day of Instruction… ................................................................... Monday, January 25"
       },
       {
-        "id": "e75cfa6a-2d6f-4548-88c6-c9cb5e2ed662",
+        "id": "e2ba0cd2-b2a7-4387-991e-760a0c9276a7",
         "title": "President's Day Holiday",
         "allDay": true,
         "start": "2027-02-15",
@@ -206,7 +206,7 @@
         "sourceText": "President's Day Holiday ............................................................. Monday, February 15"
       },
       {
-        "id": "fdff00dc-fb6a-4176-a555-c1f4987f3910",
+        "id": "f59f60a7-536c-429b-a415-c48d1aba5b8d",
         "title": "Instruction Ends",
         "allDay": true,
         "start": "2027-03-12",
@@ -219,7 +219,7 @@
         "sourceText": "Instruction Ends ....................................................................... Friday, March 12"
       },
       {
-        "id": "d31cda8a-42e0-48df-9ac5-94fe041c6711",
+        "id": "678ebacf-cafc-4a4e-b2a4-26c6ee6d692e",
         "title": "Final Exams",
         "allDay": true,
         "start": "2027-03-13",
@@ -232,7 +232,7 @@
         "sourceText": "Final Exams .............................................................................Saturday-Saturday, March 13-20"
       },
       {
-        "id": "b587d75f-c851-4e63-a884-9048168d269a",
+        "id": "1d3f7441-b5cf-4352-982a-97dce1fcbb9d",
         "title": "Winter Quarter Ends",
         "allDay": true,
         "start": "2027-03-20",
@@ -245,7 +245,7 @@
         "sourceText": "Winter Quarter Ends ................................................................. Saturday, March 20"
       },
       {
-        "id": "6679ae61-ea2a-4589-9436-b566760fc959",
+        "id": "a9bee818-dfcf-490d-9ba9-d4c7f3c98474",
         "title": "Spring Quarter Begins",
         "allDay": true,
         "start": "2027-03-24",
@@ -258,7 +258,7 @@
         "sourceText": "Spring Quarter Begins ............................................................... Wednesday, March 24"
       },
       {
-        "id": "e8c5be3d-4f15-4783-ae8c-d48b4370ecd0",
+        "id": "5d319ad8-9aa3-4d2d-b14f-ebdb2b10e5ac",
         "title": "Farmworkers Day Holiday",
         "allDay": true,
         "start": "2027-03-26",
@@ -271,7 +271,7 @@
         "sourceText": "Farmworkers Day Holiday ......................................................... Friday, March 26"
       },
       {
-        "id": "f8c22688-6e61-447d-ac12-aac207f08f91",
+        "id": "5ce9abc3-23f8-4c78-8e69-1dbec27f76ad",
         "title": "Instruction Begins",
         "allDay": true,
         "start": "2027-03-29",
@@ -284,7 +284,7 @@
         "sourceText": "Instruction Begins ..................................................................... Monday, March 29"
       },
       {
-        "id": "70d3800f-42ac-4774-8739-b7e5de7b4188",
+        "id": "9bac4d61-630f-48f4-a2b8-b64cddcb7776",
         "title": "Fifteenth Day of Instruction",
         "allDay": true,
         "start": "2027-04-16",
@@ -297,7 +297,7 @@
         "sourceText": "Fifteenth Day of Instruction… ................................................................... Friday, April 16"
       },
       {
-        "id": "48846ce3-3324-4066-979c-999f5f6bb423",
+        "id": "9d647d4b-6ea5-4dfc-a8cf-44948f3dbd2e",
         "title": "Memorial Day Observance",
         "allDay": true,
         "start": "2027-05-31",
@@ -310,7 +310,7 @@
         "sourceText": "Memorial Day Observance ......................................................... Monday, May 31"
       },
       {
-        "id": "cecadeb5-16eb-4919-a657-5e03129d7b63",
+        "id": "a970ffe6-fe14-4057-81c5-2fde5796e5f4",
         "title": "Instruction Ends",
         "allDay": true,
         "start": "2027-06-04",
@@ -323,7 +323,7 @@
         "sourceText": "Instruction Ends ....................................................................... Friday, June 4"
       },
       {
-        "id": "67b2d068-7e1f-4bae-8762-f7eb2da94e10",
+        "id": "90f9578e-d156-45f4-a427-2ba6d7de0005",
         "title": "Final Exams",
         "allDay": true,
         "start": "2027-06-05",
@@ -336,7 +336,7 @@
         "sourceText": "Final Exams .............................................................................Saturday-Friday, June 5-11"
       },
       {
-        "id": "238eab67-b192-4be4-8910-4e03c010c4ce",
+        "id": "d61048d3-5372-4b78-b71a-0479e84efdf6",
         "title": "Spring Quarter Ends",
         "allDay": true,
         "start": "2027-06-11",
@@ -349,7 +349,7 @@
         "sourceText": "Spring Quarter Ends ................................................................. Friday, June 11"
       },
       {
-        "id": "36ca32bc-973a-449f-a42c-3025e5050ee4",
+        "id": "93d460ca-a8ca-472c-b07f-8ff1ddb0f345",
         "title": "Commencement",
         "allDay": true,
         "start": "2027-06-12",
@@ -362,7 +362,7 @@
         "sourceText": "Commencement........................................................................ Saturday-Sunday, June 12-13"
       },
       {
-        "id": "22e70d95-35db-4e97-adb9-a3720872a3ad",
+        "id": "c535f1ef-83be-48f1-92fb-e40627e9351f",
         "title": "Juneteenth Holiday",
         "allDay": true,
         "start": "2027-06-18",
@@ -372,10 +372,10 @@
         "description": null,
         "category": "holiday",
         "confidence": 0.95,
-        "sourceText": "Juneteenth Holiday… ................................................................................... Friday, June 18"
+        "sourceText": "Juneteenth Holiday… ................................................................... Friday, June 18"
       },
       {
-        "id": "613df52a-316a-40c6-84b6-9bfc0af11ec3",
+        "id": "ecb0f741-8b95-4d3b-8b15-5ac655947612",
         "title": "Instruction Begins (Summer Session I)",
         "allDay": true,
         "start": "2027-06-28",
@@ -385,10 +385,10 @@
         "description": null,
         "category": "event",
         "confidence": 0.95,
-        "sourceText": "Instruction Begins .................................................................................        Monday, June 28"
+        "sourceText": "Instruction Begins ......................................................................... Monday, June 28"
       },
       {
-        "id": "0d24bec7-7444-4d0e-9d7e-92f3b2d3f172",
+        "id": "8d122370-aaaf-446e-b575-40f02110701a",
         "title": "Independence Day Holiday",
         "allDay": true,
         "start": "2027-07-05",
@@ -401,7 +401,7 @@
         "sourceText": "Independence Day Holiday… ..................................................................... Monday, July 5"
       },
       {
-        "id": "515b96ec-a6ea-471c-ab71-89157194e931",
+        "id": "16eb62d6-a0e0-4411-b353-38e29e4d11c8",
         "title": "Instruction Ends (Summer Session I)",
         "allDay": true,
         "start": "2027-07-30",
@@ -411,10 +411,10 @@
         "description": null,
         "category": "event",
         "confidence": 0.95,
-        "sourceText": "Instruction Ends… .................................................................................       Friday, July 30"
+        "sourceText": "Instruction Ends… ........................................................................ Friday, July 30"
       },
       {
-        "id": "b9572bfd-1baf-44fe-b795-bd9e8aca2e7d",
+        "id": "f2604e97-894e-4a1e-863c-0bc4d96e0db9",
         "title": "Final Exams (Summer Session I)",
         "allDay": true,
         "start": "2027-07-30",
@@ -424,10 +424,10 @@
         "description": null,
         "category": "exam",
         "confidence": 0.95,
-        "sourceText": "Final Exams .................................................................................                    Friday-Saturday, July 30-31"
+        "sourceText": "Final Exams ..................................................................................... Friday-Saturday, July 30-31"
       },
       {
-        "id": "757874e6-312c-4b19-b2f4-b882e0691632",
+        "id": "a14ef7e2-4f59-4fda-97c5-9882a88aa1c4",
         "title": "Instruction Begins (Summer Session II)",
         "allDay": true,
         "start": "2027-08-02",
@@ -437,10 +437,10 @@
         "description": null,
         "category": "event",
         "confidence": 0.95,
-        "sourceText": "Instruction Begins .................................................................................          Monday, August 2"
+        "sourceText": "Instruction Begins ........................................................................... Monday, August 2"
       },
       {
-        "id": "a26e90f9-c1c0-4fa5-8f85-2354aa317944",
+        "id": "b31c535b-b7f3-40fd-ab42-932024956c3a",
         "title": "Instruction Ends (Summer Session II)",
         "allDay": true,
         "start": "2027-09-03",
@@ -450,10 +450,10 @@
         "description": null,
         "category": "event",
         "confidence": 0.95,
-        "sourceText": "Instruction Ends… .................................................................................        Friday, September 3"
+        "sourceText": "Instruction Ends… ......................................................................... Friday, September 3"
       },
       {
-        "id": "7deba796-d975-4e0d-a80f-9994b51af3cb",
+        "id": "688dc578-a456-4d81-94cc-f5cb4c7feb58",
         "title": "Final Exams (Summer Session II)",
         "allDay": true,
         "start": "2027-09-03",
@@ -463,10 +463,10 @@
         "description": null,
         "category": "exam",
         "confidence": 0.95,
-        "sourceText": "Final Exams .................................................................................                     Friday-Saturday, September 3-4"
+        "sourceText": "Final Exams ....................................................................................... Friday-Saturday, September 3-4"
       },
       {
-        "id": "861fd2e2-4e4e-4434-b346-0f6f209b84b2",
+        "id": "3ec2263f-abf0-4a17-a9df-3d3c609c43f7",
         "title": "Labor Day Holiday",
         "allDay": true,
         "start": "2027-09-06",
@@ -476,7 +476,7 @@
         "description": null,
         "category": "holiday",
         "confidence": 0.95,
-        "sourceText": "Labor Day Holiday… .................................................................................      Monday, September 6"
+        "sourceText": "Labor Day Holiday… ....................................................................... Monday, September 6"
       }
     ]
   }

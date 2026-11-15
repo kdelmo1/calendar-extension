@@ -5,6 +5,7 @@ import { chunkText, mergeAnswers, planChunks } from "./chunks.js";
 import { AppErrorException } from "./errors.js";
 import { askGemini, type GeminiPart } from "./gemini.js";
 import { buildParts } from "./inputs.js";
+import { fixRecurrence } from "./recurrence.js";
 import { buildSchema } from "./schema.js";
 import { buildSystemPrompt } from "./prompt.js";
 import type { CalendarEvent, CaptureInput, Category, ParseResult } from "./types.js";
@@ -51,6 +52,11 @@ function yearIsMissing(parts: GeminiPart[]): boolean {
   return !/\b(19|20)\d{2}\b|'\d{2}\b/.test(allText); // e.g. 2027, 1999, '27
 }
 
+// Does this text contain a calendar date? ("Jan 5", "March 11, 2027", "09/24/26", "2027-01-05")
+function hasDate(text: string): boolean {
+  return /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}\/\d{1,2}\b|\b\d{4}-\d{2}-\d{2}\b/i.test(text);
+}
+
 // Checks Gemini's answer, fills in safe defaults, and adds an id to every event.
 function cleanUp(raw: unknown, yearMissing: boolean, lines: string[] | null): ParseResult {
   const r = raw as (Omit<Partial<ParseResult>, "events"> & { events?: GeminiEvent[] }) | null;
@@ -62,6 +68,8 @@ function cleanUp(raw: unknown, yearMissing: boolean, lines: string[] | null): Pa
     throw new AppErrorException("NO_DATES", "We couldn't find any dates in what you selected.", 422);
   }
 
+  const timeZone = isRealTimeZone(r.timeZone) ? r.timeZone!.trim() : DEFAULT_TIME_ZONE;
+
   const events: CalendarEvent[] = [];
   for (const e of r.events) {
     const times = fixTimes(e);
@@ -70,16 +78,22 @@ function cleanUp(raw: unknown, yearMissing: boolean, lines: string[] | null): Pa
       console.warn("Skipping event with unusable date:", JSON.stringify(e).slice(0, 200));
       continue;
     }
+    // Repeating events: check the RRULE and move the first meeting onto one of its days (recurrence.ts).
+    const { rule, ...fixedTimes } = fixRecurrence(e.recurrence, times, timeZone);
+    const sourceText = sourceTextFor(e, lines);
+    // A repeating event whose original text has no date ("Tuesdays 5:20 PM") has guessed start/end
+    // dates, whatever Gemini says, so it must be flagged for review.
+    const guessed = yearMissing || (rule !== null && !hasDate(sourceText));
     events.push({
       id: randomUUID(),
       title: String(e.title || "Untitled event"),
-      ...times,
-      recurrence: e.recurrence || null,
+      ...fixedTimes,
+      recurrence: rule,
       location: e.location || null,
       description: e.description || null,
       category: CATEGORIES.includes(e.category as Category) ? (e.category as Category) : "event",
-      confidence: honestConfidence(yearMissing ? { ...e, yearSource: "guessed" } : e),
-      sourceText: sourceTextFor(e, lines),
+      confidence: honestConfidence(guessed ? { ...e, yearSource: "guessed" } : e),
+      sourceText,
     });
   }
 
@@ -90,9 +104,38 @@ function cleanUp(raw: unknown, yearMissing: boolean, lines: string[] | null): Pa
 
   return {
     calendarName: r.calendarName?.trim() || "Imported dates",
-    timeZone: isRealTimeZone(r.timeZone) ? r.timeZone!.trim() : DEFAULT_TIME_ZONE,
-    events,
+    timeZone,
+    events: dropRepeatsCoveredByDatedRows(events),
   };
+}
+
+// A syllabus can say "Lectures T/TH 9:50-11:25" AND list every lecture by date. Then a repeating
+// "Lecture" event would double every lecture in the calendar. (This happens when a big input is split
+// into parts: the part with "T/TH 9:50" can't see the dated schedule in another part.)
+// So: if a repeating class event shares its weekdays with 3+ dated class events, drop it and give its
+// time to those dated rows that have no time yet.
+function dropRepeatsCoveredByDatedRows(events: CalendarEvent[]): CalendarEvent[] {
+  const DAY_CODES = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+  const dayCode = (date: string) => DAY_CODES[new Date(`${date.slice(0, 10)}T12:00:00Z`).getUTCDay()];
+
+  const dropped = new Set<CalendarEvent>();
+  for (const repeat of events) {
+    const days = repeat.recurrence?.match(/BYDAY=([^;]+)/)?.[1].split(",").map((d) => d.slice(-2));
+    if (repeat.category !== "class" || !days) continue;
+    const datedRows = events.filter((e) => e !== repeat && !e.recurrence && e.category === "class" && days.includes(dayCode(e.start)));
+    if (datedRows.length < 3) continue;
+
+    dropped.add(repeat);
+    console.log(`Dropping repeating "${repeat.title}": ${datedRows.length} dated class rows already cover it`);
+    if (!repeat.allDay) {
+      for (const row of datedRows.filter((e) => e.allDay)) {
+        row.allDay = false;
+        row.start = `${row.start.slice(0, 10)}${repeat.start.slice(10)}`;
+        row.end = `${row.start.slice(0, 10)}${repeat.end.slice(10)}`;
+      }
+    }
+  }
+  return events.filter((e) => !dropped.has(e));
 }
 
 // The original snippet for an event. For text inputs Gemini gives line numbers
