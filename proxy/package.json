@@ -8,7 +8,8 @@
     "dev": "tsx watch --env-file=.env src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
-    "try:ucsc": "tsx scripts/try-ucsc.ts"
+    "try:ucsc": "tsx scripts/try-ucsc.ts",
+    "try:files": "tsx scripts/try-files.ts"
   },
   "engines": {
     "node": ">=20"

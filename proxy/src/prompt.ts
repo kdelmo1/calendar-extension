@@ -6,6 +6,10 @@ export function buildSystemPrompt(today: string): string {
 
 Today's date is ${today}.
 
+The input may be text, a PDF, a photo, or a screenshot. For PDFs and images, read every piece of
+visible text (including tables, headers and small print) before deciding on events. Ignore
+browser UI, menus and ads in screenshots.
+
 Rules:
 - Make one event for every distinct date or date range in the input. Do not skip any, and do not invent any.
 - Tables: each cell is its own event. Use the row label and the column header together for the title
@@ -20,7 +24,10 @@ Rules:
 - category: "holiday" for holidays and no-class days, "exam" for exams and finals,
   "deadline" for anything that is due or ends a chance to do something, "class" for class meetings,
   otherwise "event".
-- sourceText: copy the original words for that event exactly, including the date as written.
+- If a start time is given, set allDay = false and use local times like 2027-01-08T18:00:00 (no offset).
+  If there is no end time, make the event one hour long.
+- sourceText: copy the original words for that event exactly, including the date as written
+  (for PDFs and images, the text as it appears in the document).
 - confidence: be honest. Use below 0.7 if you had to guess the year, the date is unclear,
   or you are not sure the text is really a calendar date.
 - calendarName: a short name for the whole set, e.g. "UCSC Winter 2027".

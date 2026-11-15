@@ -2,7 +2,8 @@
 
 import { randomUUID } from "node:crypto";
 import { AppErrorException } from "./errors.js";
-import { askGemini, type GeminiPart } from "./gemini.js";
+import { askGemini } from "./gemini.js";
+import { buildParts } from "./inputs.js";
 import { buildSystemPrompt } from "./prompt.js";
 import type { CalendarEvent, CaptureInput, Category, ParseResult } from "./types.js";
 
@@ -10,29 +11,10 @@ const DEFAULT_TIME_ZONE = "America/Los_Angeles";
 const CATEGORIES: Category[] = ["deadline", "holiday", "exam", "class", "event"];
 
 export async function parseCapture(input: CaptureInput): Promise<ParseResult> {
-  const parts = buildParts(input);
+  const parts = await buildParts(input); // text, file or image -> Gemini message (see inputs.ts)
   const today = todayIn(DEFAULT_TIME_ZONE);
   const raw = await askGemini(buildSystemPrompt(today), parts);
   return cleanUp(raw);
-}
-
-// Builds the message we send to Gemini from what the user captured.
-function buildParts(input: CaptureInput): GeminiPart[] {
-  // Page title/URL help Gemini guess the year and the calendar name.
-  const context: string[] = [];
-  if (input.pageTitle) context.push(`Page title: ${input.pageTitle}`);
-  if (input.pageUrl) context.push(`Page URL: ${input.pageUrl}`);
-
-  if (input.kind === "text" && input.text?.trim()) {
-    return [{ text: [...context, "Input:", input.text].join("\n") }];
-  }
-
-  // TODO(task 4): files, images, screenshots and imageUrl.
-  throw new AppErrorException(
-    "PARSE_FAILED",
-    "Only highlighted or pasted text is supported right now.",
-    400,
-  );
 }
 
 // Checks Gemini's answer, fills in safe defaults, and adds an id to every event.

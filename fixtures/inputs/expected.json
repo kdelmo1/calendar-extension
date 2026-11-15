@@ -1,0 +1,16 @@
+{
+  "_readme": "Answer keys for the test inputs in this folder, used by `npm run try:files` in proxy/. An event matches if Gemini's start/end BEGIN WITH these strings, so a date-only value like 2027-02-04 accepts any time that day.",
+  "flyer": [
+    { "title": "Kickoff Mixer", "start": "2027-01-08T18:00", "end": "2027-01-08T21:00" },
+    { "title": "Team sign-up deadline", "start": "2027-01-15", "end": "2027-01-15" },
+    { "title": "Workshop: Intro to the Gemini API", "start": "2027-01-27T17:30", "end": "2027-01-27T18:30" },
+    { "title": "No meetings (Presidents Day weekend)", "start": "2027-02-13", "end": "2027-02-15" },
+    { "title": "Demo Day", "start": "2027-02-19T13:00", "end": "2027-02-19T16:00" }
+  ],
+  "syllabus": [
+    { "title": "Sprint 1 due", "start": "2027-01-22", "end": "2027-01-22" },
+    { "title": "Midterm", "start": "2027-02-04", "end": "2027-02-04" },
+    { "title": "No class", "start": "2027-03-02", "end": "2027-03-02" },
+    { "title": "Final project demos", "start": "2027-03-16T12:00", "end": "2027-03-16T15:00" }
+  ]
+}
