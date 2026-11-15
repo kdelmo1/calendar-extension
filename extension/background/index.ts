@@ -1,5 +1,7 @@
 import { getToken } from "./auth";
 import "./context-menu";
+import "../parse"; // Lane 2: PARSE_REQUEST and EDIT_REQUEST handlers.
+import "../calendar"; // Lane 3: WRITE_REQUEST and UNDO_REQUEST handlers.
 
 // Chrome opens the panel when the user clicks the extension's toolbar icon.
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {
