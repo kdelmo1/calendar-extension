@@ -11,7 +11,6 @@
 //   Answer cut off / junk   -> PARSE_FAILED
 
 import { AppErrorException } from "./errors.js";
-import { parseResultSchema } from "./schema.js";
 
 // You can switch models without code changes: set these in proxy/.env
 // Default chosen by timing the full UCSC page (Nov 2026): 3.5-flash-lite got every
@@ -38,7 +37,8 @@ type Failure =
   | { kind: "fatal"; error: AppErrorException }; // stop now
 
 // Sends the prompt + input to Gemini and returns its JSON reply (already parsed).
-export async function askGemini(systemPrompt: string, parts: GeminiPart[]): Promise<unknown> {
+// `schema` is the JSON shape Gemini must answer in (see schema.ts).
+export async function askGemini(systemPrompt: string, parts: GeminiPart[], schema: object): Promise<unknown> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new AppErrorException("PARSE_FAILED", "The server is missing its Gemini API key.");
@@ -50,7 +50,7 @@ export async function askGemini(systemPrompt: string, parts: GeminiPart[]): Prom
     generationConfig: {
       temperature: 0, // we want the same, careful answer every time
       responseMimeType: "application/json",
-      responseSchema: parseResultSchema,
+      responseSchema: schema,
     },
   });
 
@@ -145,6 +145,9 @@ async function tryOnce(
     console.error(`Gemini returned no text (${model}):`, JSON.stringify(data).slice(0, 500));
     return fatal("Gemini couldn't read any dates from this. Try selecting just the dates.");
   }
+
+  // Answer length is what makes Gemini slow, so log it.
+  console.log(`Gemini ok (${model}): ${data?.usageMetadata?.candidatesTokenCount ?? "?"} output tokens`);
 
   try {
     return { ok: true, value: JSON.parse(text) };

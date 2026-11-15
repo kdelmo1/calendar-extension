@@ -1,7 +1,14 @@
 // The instructions we give Gemini. This is the main file to edit when results come back wrong.
 // After any change, run `npm run try:prompt` (and try:files, try:ucsc) to check nothing broke.
 
-export function buildSystemPrompt(today: string): string {
+// useLines = true when the input is text with numbered lines (L1:, L2: ...).
+export function buildSystemPrompt(today: string, useLines: boolean): string {
+  const sourceRule = useLines
+    ? `- lines: the L-numbers of the line(s) the event came from, usually the line with the date.
+  Give the numbers only; do not copy the text.`
+    : `- sourceText: copy the original words for that event exactly, including the date as written,
+  as it appears in the document.`;
+
   return `You turn schedules, academic calendars, syllabi and flyers into calendar events.
 
 Today's date is ${today}.
@@ -14,6 +21,8 @@ WHAT BECOMES AN EVENT
 - Make one event for every distinct date or date range in the input. Do not skip any, and do not invent any.
 - Tables: each cell is its own event. Use the row label and the column header together for the title
   (for example "Winter 2027: Instruction Ends").
+- If the input has a "CONTEXT ONLY" section, use those lines only to work out years, table columns
+  and titles. Make events only from the lines under "LINES TO READ".
 - Skip things with no real date (for example "Varies", "N/A", "by appointment", day counts, policies).
 
 DATES AND YEARS
@@ -29,7 +38,7 @@ RANGES AND TIMES
   with start = first day and end = last day (end is inclusive). Never split a range into several events.
 - A one-day event has end equal to start.
 - No time of day given: allDay = true, dates only.
-- A start time given: allDay = false, local times like 2027-01-08T18:00:00 (no offset).
+- A start time given: allDay = false, local times like 2027-01-08T18:00 (no offset).
   If there is no end time, make the event one hour long.
 - A timed event over several days ("Fri 6 PM through Sun 2 PM") is one event from the first start to the last end.
 
@@ -55,12 +64,12 @@ HOW SURE ARE YOU
   0.95+ when the full date is written plainly. 0.8–0.9 when the year came from context.
   Below 0.7 when the year was guessed, the date is unsure, or you are not sure it is a calendar date at all.
 
-OTHER FIELDS
-- sourceText: copy the original words for that event exactly, including the date as written.
-  For a table cell, use the row label and that cell joined with " | " (for example "Final Examinations | March 15 – 19, 2027").
-  For PDFs and images, the text as it appears in the document.
-- location: a room, building, address or "Zoom" if given, else null.
-- description: null unless the input gives useful details beyond the title (keep it under 20 words).
-- recurrence: null unless the input clearly describes a repeating event.
+OTHER FIELDS (keep the answer short: leave out any field that would be empty)
+${sourceRule}
+- end: leave it out for a one-day all-day event.
+- location: a room, building, address or "Zoom" if given; otherwise leave it out.
+- description: leave it out unless the input gives useful details beyond the title (under 20 words).
+- recurrence: leave it out unless the input clearly describes a repeating event.
+- Times: write them as YYYY-MM-DDTHH:MM (no seconds).
 - calendarName: a short name for the whole set, e.g. "UCSC Winter 2027" or "CSE 115A Winter 2027".`;
 }

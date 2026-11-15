@@ -1,20 +1,45 @@
 // Turns a CaptureInput into a ParseResult using Gemini.
 
 import { randomUUID } from "node:crypto";
+import { chunkText, mergeAnswers, planChunks } from "./chunks.js";
 import { AppErrorException } from "./errors.js";
 import { askGemini, type GeminiPart } from "./gemini.js";
 import { buildParts } from "./inputs.js";
+import { buildSchema } from "./schema.js";
 import { buildSystemPrompt } from "./prompt.js";
 import type { CalendarEvent, CaptureInput, Category, ParseResult } from "./types.js";
 
 const DEFAULT_TIME_ZONE = "America/Los_Angeles";
 const CATEGORIES: Category[] = ["deadline", "holiday", "exam", "class", "event"];
 
+// One event the way Gemini writes it (see schema.ts), before we tidy it up.
+type GeminiEvent = Partial<CalendarEvent> & { lines?: number[]; yearSource?: string; unsure?: boolean };
+
 export async function parseCapture(input: CaptureInput): Promise<ParseResult> {
-  const parts = await buildParts(input); // text, file or image -> Gemini message (see inputs.ts)
-  const today = todayIn(DEFAULT_TIME_ZONE);
-  const raw = await askGemini(buildSystemPrompt(today), parts);
-  return cleanUp(raw, yearIsMissing(parts));
+  // text, file or image -> Gemini message (see inputs.ts). `lines` is set for text inputs.
+  const { parts, lines, intro } = await buildParts(input);
+  const useLines = lines !== null;
+  const prompt = buildSystemPrompt(todayIn(DEFAULT_TIME_ZONE), useLines);
+  const schema = buildSchema(useLines);
+
+  // Big text inputs are split into a few pieces that Gemini reads at the same time
+  // (see chunks.ts). Everything else is one call.
+  const chunks = lines ? planChunks(lines) : [];
+  let raw: unknown;
+  if (lines && chunks.length > 1) {
+    console.log(`Splitting ${lines.length} lines into ${chunks.length} parallel parts: ` +
+      chunks.map((c) => `L${c.from}-L${c.to}`).join(", "));
+    // Promise.all = run them all at once and wait for every one (like asyncio.gather).
+    // If any part fails, the whole parse fails with that part's AppError.
+    const answers = await Promise.all(
+      chunks.map((chunk) => askGemini(prompt, [{ text: chunkText(intro, lines, chunk) }], schema)),
+    );
+    raw = mergeAnswers(answers, chunks);
+  } else {
+    raw = await askGemini(prompt, parts, schema);
+  }
+
+  return cleanUp(raw, yearIsMissing(parts), lines);
 }
 
 // True if the input is all text and has no year anywhere (like "Bake sale March 3").
@@ -27,8 +52,8 @@ function yearIsMissing(parts: GeminiPart[]): boolean {
 }
 
 // Checks Gemini's answer, fills in safe defaults, and adds an id to every event.
-function cleanUp(raw: unknown, yearMissing: boolean): ParseResult {
-  const r = raw as Partial<ParseResult> | null;
+function cleanUp(raw: unknown, yearMissing: boolean, lines: string[] | null): ParseResult {
+  const r = raw as (Omit<Partial<ParseResult>, "events"> & { events?: GeminiEvent[] }) | null;
   if (!r || !Array.isArray(r.events)) {
     throw new AppErrorException("PARSE_FAILED", "Gemini's answer was missing the event list.", 502);
   }
@@ -54,7 +79,7 @@ function cleanUp(raw: unknown, yearMissing: boolean): ParseResult {
       description: e.description || null,
       category: CATEGORIES.includes(e.category as Category) ? (e.category as Category) : "event",
       confidence: honestConfidence(yearMissing ? { ...e, yearSource: "guessed" } : e),
-      sourceText: String(e.sourceText ?? ""),
+      sourceText: sourceTextFor(e, lines),
     });
   }
 
@@ -70,10 +95,25 @@ function cleanUp(raw: unknown, yearMissing: boolean): ParseResult {
   };
 }
 
+// The original snippet for an event. For text inputs Gemini gives line numbers
+// (to keep its answer short) and we copy those lines ourselves, so it's always exact.
+// For PDFs and images Gemini copies the text itself.
+function sourceTextFor(e: GeminiEvent, lines: string[] | null): string {
+  if (e.sourceText) return String(e.sourceText);
+  if (!lines || !Array.isArray(e.lines)) return "";
+  const picked = [...new Set(e.lines)]
+    .filter((n) => Number.isInteger(n) && n >= 1 && n <= lines.length)
+    .sort((a, b) => a - b)
+    .slice(0, 5) // a few lines at most
+    .map((n) => lines[n - 1].trim())
+    .filter(Boolean);
+  return picked.join("\n");
+}
+
 // Checks and tidies one event's dates. Returns null if the start date is unusable.
 //   all-day: "YYYY-MM-DD"            timed: "YYYY-MM-DDTHH:MM:SS" (local time, no offset)
 // Rules: a bad or too-early end becomes the start (all-day) or start + 1 hour (timed).
-function fixTimes(e: Partial<CalendarEvent>): Pick<CalendarEvent, "allDay" | "start" | "end"> | null {
+function fixTimes(e: GeminiEvent): Pick<CalendarEvent, "allDay" | "start" | "end"> | null {
   const start = String(e.start ?? "").trim();
   const end = String(e.end ?? "").trim();
   const startDate = start.slice(0, 10);
@@ -125,7 +165,7 @@ function isRealTimeZone(tz: string | undefined): boolean {
 // Gemini tends to say it is very confident even when it guessed. So we also ask it two
 // simple questions (yearSource, unsure) and cap the confidence based on the answers.
 // Anything below 0.7 gets flagged for review in the side panel.
-function honestConfidence(e: Partial<CalendarEvent> & { yearSource?: string; unsure?: boolean }): number {
+function honestConfidence(e: GeminiEvent): number {
   let conf = Number(e.confidence);
   if (Number.isNaN(conf)) conf = 0.5; // garbage -> "not sure"
   conf = Math.min(1, Math.max(0, conf));

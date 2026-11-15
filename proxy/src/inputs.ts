@@ -23,17 +23,32 @@ const PDF_TYPE = "application/pdf";
 // Plain-text types: we decode these ourselves and send them as text.
 const TEXT_TYPES = ["text/plain", "text/markdown", "text/x-markdown", "text/csv", "text/html"];
 
-export async function buildParts(input: CaptureInput): Promise<GeminiPart[]> {
+// What we send to Gemini. `lines` is only set for text inputs: we number each line
+// ("L1: ...") so Gemini can answer with line numbers instead of copying the text
+// (much shorter answer = much faster). parse.ts uses `lines` to rebuild sourceText.
+// `intro` is the page title/URL text (used again if parse.ts splits a big input into pieces).
+export type BuiltInput = { parts: GeminiPart[]; lines: string[] | null; intro: string };
+
+export async function buildParts(input: CaptureInput): Promise<BuiltInput> {
   // Page title/URL help Gemini guess the year and the calendar name.
   const context: string[] = [];
   if (input.pageTitle) context.push(`Page title: ${input.pageTitle}`);
   if (input.pageUrl) context.push(`Page URL: ${input.pageUrl}`);
   const intro = (what: string): GeminiPart => ({ text: [...context, what].join("\n") });
 
+  // Text input: number every line and remember the lines.
+  const numbered = (heading: string, text: string): BuiltInput => {
+    const lines = text.split(/\r?\n/);
+    const body = lines.map((line, i) => `L${i + 1}: ${line}`).join("\n");
+    return { parts: [{ text: [...context, heading, body].join("\n") }], lines, intro: context.join("\n") };
+  };
+  // File or image input: no line numbers.
+  const media = (parts: GeminiPart[]): BuiltInput => ({ parts, lines: null, intro: context.join("\n") });
+
   switch (input.kind) {
     case "text": {
       if (!input.text?.trim()) throw noInput();
-      return [{ text: [...context, "Input:", input.text].join("\n") }];
+      return numbered("Input (numbered lines):", input.text);
     }
 
     case "file":
@@ -46,10 +61,10 @@ export async function buildParts(input: CaptureInput): Promise<GeminiPart[]> {
         // .txt / .md: just send the words.
         const text = bytes.toString("utf8");
         if (!text.trim()) throw noInput();
-        return [{ text: [...context, "Input (from an uploaded text file):", text].join("\n") }];
+        return numbered("Input (uploaded text file, numbered lines):", text);
       }
       const what = input.kind === "screenshot" ? "Input: a screenshot of the page." : "Input: the attached file.";
-      return [intro(what), inline(mimeType, bytes)];
+      return media([intro(what), inline(mimeType, bytes)]);
     }
 
     case "image": {
@@ -63,7 +78,7 @@ export async function buildParts(input: CaptureInput): Promise<GeminiPart[]> {
       } else {
         throw noInput();
       }
-      return [intro("Input: the attached image."), inline(mimeType, bytes)];
+      return media([intro("Input: the attached image."), inline(mimeType, bytes)]);
     }
 
     default:

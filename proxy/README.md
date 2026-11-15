@@ -108,9 +108,26 @@ npm run try:errors
 Settings in `.env` (all optional): `GEMINI_MODEL`, `GEMINI_BACKUP_MODEL`,
 `PARSE_TIMEOUT_MS` (default 30000).
 
+## Speed
+
+Gemini's time depends mostly on how much it has to **write**, so we keep its answer short:
+
+- **Line numbers:** text inputs are sent with numbered lines (`L12: ...`). Gemini answers
+  `lines: [12]` instead of copying the text, and `parse.ts` copies line 12 into `sourceText`.
+- **Empty fields left out:** Gemini skips `end` (one-day events), `location`, `description`
+  and `recurrence` when empty; `parse.ts` fills them back in, so the `ParseResult` is complete.
+- **Big inputs in parallel:** text with 60+ lines is cut into up to 3 pieces (between rows)
+  that Gemini reads at the same time (`src/chunks.ts`). Each piece also gets the first lines
+  and nearest table header as "context only", so it still knows the years and columns.
+  If any piece fails, the whole parse fails with that piece's `AppError`.
+
+Full UCSC page (153 events): ~40 s → 26 s (short answers) → **~12 s** (3 parallel pieces).
+The server log prints `Gemini ok (...): N output tokens` for every call.
+
 ## Free-tier rate limit
 
 The free tier allows **15 requests per minute per model**, shared by everyone using the same key.
+A big text input (60+ lines) uses up to 3 requests, because it is split into parallel pieces.
 Going over gives HTTP 429. Don't run two `try:` scripts back to back; wait a minute between them.
 
 ## Files
@@ -120,6 +137,7 @@ Going over gives HTTP 429. Don't run two `try:` scripts back to back; wait a min
 | `src/server.ts`       | Express server and routes                            |
 | `src/parse.ts`        | CaptureInput → Gemini message → cleaned ParseResult  |
 | `src/inputs.ts`       | Text / files / images / image URLs → Gemini message  |
+| `src/chunks.ts`       | Splits big text inputs into parallel pieces, merges answers |
 | `src/gemini.ts`       | The one place that calls the Gemini REST API         |
 | `src/prompt.ts`       | Rules we give Gemini (edit this to improve accuracy) |
 | `src/schema.ts`       | JSON shape Gemini must reply with                    |

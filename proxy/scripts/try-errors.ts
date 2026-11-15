@@ -34,7 +34,7 @@ const okResult = { calendarName: "Test", timeZone: "America/Los_Angeles", events
 
 const calls: Record<string, string[]> = {}; // scenario -> models called, in order
 
-function answer(scenario: string, model: string, res: ServerResponse) {
+function answer(scenario: string, model: string, res: ServerResponse, inputText: string) {
   const send = (status: number, body: unknown) => {
     res.writeHead(status, { "Content-Type": "application/json" });
     res.end(JSON.stringify(body));
@@ -68,6 +68,14 @@ function answer(scenario: string, model: string, res: ServerResponse) {
         { ...goodEvent, allDay: false, start: "2027-01-08T18:00", end: "2027-01-08T17:00" }, // end before start -> start + 1 h
       ],
     }));
+    case "big": {
+      // One event per line under "LINES TO READ", plus one from line 1 (a context-only
+      // line in pieces 2 and 3) that the merge step should throw away.
+      const own = [...inputText.split("LINES TO READ:")[1].matchAll(/^L(\d+):/gm)].map((m) => Number(m[1]));
+      const lineNumbers = own.includes(1) ? own : [...own, 1];
+      const events = lineNumbers.map((n) => ({ ...goodEvent, sourceText: undefined, lines: [n], title: `Row ${n}` }));
+      return send(200, geminiReply({ ...okResult, events }));
+    }
     default: return send(500, { error: { message: `unknown scenario ${scenario}` } });
   }
 }
@@ -79,7 +87,8 @@ const fakeGemini = createServer((req: IncomingMessage, res: ServerResponse) => {
     const model = req.url?.match(/models\/([^:]+):/)?.[1] ?? "?";
     const scenario = body.match(/SCENARIO:([\w-]+)/)?.[1] ?? "?";
     (calls[scenario] ??= []).push(model);
-    answer(scenario, model, res);
+    const inputText: string = JSON.parse(body)?.contents?.[0]?.parts?.[0]?.text ?? "";
+    answer(scenario, model, res, inputText);
   });
 });
 await new Promise<void>((resolve) => fakeGemini.listen(0, "127.0.0.1", resolve));
@@ -121,6 +130,7 @@ await waitForProxy();
 
 type Test = {
   scenario: string;
+  text?: string; // input text (default: just the scenario line)
   what: string;
   status: number;
   code?: AppError["code"];
@@ -156,6 +166,20 @@ const tests: Test[] = [
       return null;
     },
   },
+  {
+    scenario: "big",
+    // 100 lines: big enough to be split into 3 parallel parts
+    text: ["SCENARIO:big", ...Array.from({ length: 99 }, (_, i) => `Row ${i + 2} | Jan. 4, 2027`)].join("\n"),
+    what: "100-line input -> 3 parallel parts, merged, no duplicates",
+    status: 200,
+    models: [M, M, M],
+    check: (r) => {
+      if (r.events.length !== 100) return `expected 100 events (one per line), got ${r.events.length}`;
+      const row50 = r.events.find((e) => e.title === "Row 50");
+      if (row50?.sourceText !== "Row 50 | Jan. 4, 2027") return `sourceText for line 50 was "${row50?.sourceText}"`;
+      return null;
+    },
+  },
 ];
 
 let passed = 0;
@@ -164,7 +188,7 @@ for (const t of tests) {
   const res = await fetch(`${PROXY}/parse`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "text", text: `SCENARIO:${t.scenario}` }),
+    body: JSON.stringify({ kind: "text", text: t.text ?? `SCENARIO:${t.scenario}` }),
   });
   const body = await res.json();
   const secs = ((Date.now() - started) / 1000).toFixed(1);
