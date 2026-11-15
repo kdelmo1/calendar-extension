@@ -49,3 +49,10 @@ export type WriteResult = {
   added: number;
   failed: { eventId: string; reason: string }[];
 };
+export type EditRequest = {
+  events: CalendarEvent[];
+  instruction: string;
+  calendarName?: string;
+  timeZone?: string;
+};
+export type EditResult = { result: ParseResult; summary: string };
