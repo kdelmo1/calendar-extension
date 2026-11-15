@@ -1,0 +1,3 @@
+# Real test inputs that shouldn't be on GitHub (e.g. a syllabus with someone's email):
+# name them private-something.pdf and git will ignore them. Their answer keys can stay.
+private-*
