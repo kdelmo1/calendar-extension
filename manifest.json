@@ -11,6 +11,9 @@
     "activeTab",
     "storage"
   ],
+  "host_permissions": [
+    "https://calendar-proxy-483226286666.us-west1.run.app/*"
+  ],
   "oauth2": {
     "client_id": "371346307908-g320o0jqpaijkfq0rba5a23djf1ivn3e.apps.googleusercontent.com",
     "scopes": ["https://www.googleapis.com/auth/calendar"]
