@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
 import SuccessScreen from "./SuccessScreen";
+import ErrorScreen from "./ErrorScreen";
 import type { AppError, CaptureInput, Message, ParseResult, WriteResult } from "./types";
 // Fake data from Lane 2's fixtures folder (repo root).
 import fixture from "../../fixtures/ucsc-winter.json";
@@ -12,6 +13,13 @@ const fakeData = fixture as unknown as ParseResult;
 const SHOW_DEMO_CONTROLS = true;
 
 const USE_FAKE_BACKEND = true;
+
+const SHOW_ERROR_TESTS = true;
+
+const ERROR_CODES: AppError["code"][] = [
+  "NO_DATES", "PARSE_FAILED", "RATE_LIMIT", "TIMEOUT",
+  "AUTH_DENIED", "PARTIAL_WRITE", "CALENDAR_ERROR",
+];
 
 type Screen = 
   | { name: "loading"; message: string }
@@ -43,8 +51,13 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: "review", data: fakeData });
 
   const [lastReviewed, setLastReviewed] = useState<ParseResult>(fakeData);
-  // Show loading text, then ask Lane 2 to parse.
+  
+  const [lastInput, setLastInput] = useState<CaptureInput | null>(null);
+  // Events that failed to write, for "Retry the failed events".
+  const [failedIds, setFailedIds] = useState<string[]>([]);
+
   function startParsing(input: CaptureInput) {
+    setLastInput(input);
     setScreen({ name: "loading", message: loadingText(input) });
     send({ type: "PARSE_REQUEST", payload: input });
   }
@@ -84,6 +97,9 @@ export default function App() {
       setScreen({ name: "error", error: payload });
       return;
     }
+    const result = payload as WriteResult;
+    // Remember which events failed, in case the user retries them.
+    setFailedIds(result.failed.map((f) => f.eventId));
     setScreen({ name: "success", result: payload as WriteResult });
   }
 
@@ -105,6 +121,26 @@ export default function App() {
     setScreen({ name: "undone" });
   }
 
+  function recover(code: AppError["code"]) {
+    if (code === "RATE_LIMIT" || code === "TIMEOUT") {
+      // Try the same capture again. If we have none, go back to review.
+      if (lastInput) startParsing(lastInput);
+      else setScreen({ name: "review", data: lastReviewed });
+    } else if (code === "NO_DATES" || code === "PARSE_FAILED") {
+      // Task 6 will send the user to the input screen. For now: review.
+      setScreen({ name: "review", data: fakeData });
+    } else if (code === "PARTIAL_WRITE") {
+      // Send only the events that failed.
+      const retry = {
+        ...lastReviewed,
+        events: lastReviewed.events.filter((e) => failedIds.includes(e.id)),
+      };
+      handleAdd(retry);
+    } else {
+      // AUTH_DENIED and CALENDAR_ERROR: send the last write again.
+      handleAdd(lastReviewed);
+    }
+  }
   // Listen for messages from the other lanes.
   useEffect(() => {
     if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
@@ -134,6 +170,27 @@ export default function App() {
         >
           Simulate: capture, then result
         </button>
+      )}
+
+      {SHOW_ERROR_TESTS && (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ margin: "0 0 4px" }}>Test errors:</p>
+          {ERROR_CODES.map((code) => (
+            <button
+              key={code}
+              type="button"
+              style={{ marginRight: 4, marginBottom: 4 }}
+              onClick={() =>
+                setScreen({
+                  name: "error",
+                  error: { code, message: `Fake ${code} message for testing.` },
+                })
+              }
+            >
+              {code}
+            </button>
+          ))}
+        </div>
       )}
 
       {screen.name === "loading" && <LoadingScreen message={screen.message} />}
@@ -170,7 +227,12 @@ export default function App() {
         </div>
       )}
 
-      {screen.name === "error" && <p role="alert">{screen.error.message}</p>}
+      {screen.name === "error" && (
+        <ErrorScreen
+          error={screen.error}
+          onRecover={() => recover(screen.error.code)}
+        />
+      )}
     </main>
   );
 }
