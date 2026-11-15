@@ -23,6 +23,15 @@ WHAT BECOMES AN EVENT
   (for example "Winter 2027: Instruction Ends").
 - If the input has a "CONTEXT ONLY" section, use those lines only to work out years, table columns
   and titles. Make events only from the lines under "LINES TO READ".
+- Course schedules: EVERY dated row is an event, including ordinary lecture rows that only list a topic
+  (category "class", title = the topic). Do not skip rows because they seem unimportant.
+- Never borrow a date. Something with no date of its own (for example "HW1 released" written between two
+  dated rows, "office hours TBA", "sign up on TBD") is not an event, even if a nearby row has a date.
+- Weekly repeating meetings with no specific date ("Lectures T/TH 9:50", "Section: Mon 8:00 AM",
+  "Office hours: Tuesdays 2 PM") are NOT events: do not put them on a made-up date. But a dated change
+  to them IS an event (for example "office hours moved to 11/18 at 1:30 PM", "cancelled 10/27").
+- Do not repeat an event. If the same date range for the same thing is listed twice (for example two
+  homeworks that share one test window), make ONE event.
 - Skip things with no real date (for example "Varies", "N/A", "by appointment", day counts, policies).
 
 DATES AND YEARS
@@ -30,7 +39,12 @@ DATES AND YEARS
 - If not, work the year out from the surrounding text: headings ("Winter 2027"), academic years
   ("2026-27": fall is in 2026, winter and spring are in 2027), and the other dates around it.
   A list that goes from December to January has crossed into the next year.
-- If there is no clue at all, use the next time that date happens on or after today.
+- A list of dates with no year that fits the current school term belongs to the current term, even if
+  some of its dates have already passed (in mid-November, a fall list running October to December is
+  this year). Use the next time a date happens on or after today only for a lone date with no clues.
+- Times but NO date anywhere (for example a run-of-show or agenda that only lists times): still make the
+  events with those times, put them on today's date as a placeholder, and set unsure = true and
+  yearSource = "guessed" on EVERY one, so the user is asked to set the real date.
 - Write dates as YYYY-MM-DD. Numeric dates like 3/4 are US style (month/day).
 
 RANGES AND TIMES
