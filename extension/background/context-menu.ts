@@ -19,7 +19,7 @@ chrome.runtime.onInstalled.addListener(() => {
       {
         id: MENU_ID,
         title: "Add dates to Google Calendar",
-        contexts: ["selection"],
+        contexts: ["selection", "image"],
       },
       () => {
         if (chrome.runtime.lastError) {
@@ -43,27 +43,34 @@ async function sendCapture(capture: CaptureInput) {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== MENU_ID) return;
 
-  const text = info.selectionText?.trim();
-  if (!text) {
-    reportError("Highlight some text containing dates, then try again.", "NO_DATES");
-    return;
-  }
   if (tab?.windowId === undefined) {
     reportError("Could not find the browser window. Try again on a web page.");
     return;
   }
 
-  const capture: CaptureInput = {
-    kind: "text",
-    text,
-    pageUrl: info.pageUrl ?? tab.url,
-    pageTitle: tab.title,
-  };
+  let capture: CaptureInput;
+  if (info.mediaType === "image") {
+    if (!info.srcUrl) {
+      reportError("Could not read this image's URL. Try another image.");
+      return;
+    }
+    // Prefer the clicked image even if the page also has highlighted text.
+    capture = { kind: "image", imageUrl: info.srcUrl };
+  } else {
+    const text = info.selectionText?.trim();
+    if (!text) {
+      reportError("Highlight some text containing dates, then try again.", "NO_DATES");
+      return;
+    }
+    capture = { kind: "text", text };
+  }
+  capture.pageUrl = info.pageUrl ?? tab.url;
+  capture.pageTitle = tab.title;
 
   // Call open immediately, while Chrome still recognizes the menu user gesture.
   void chrome.sidePanel.open({ windowId: tab.windowId })
     .then(() => sendCapture(capture))
     .catch(() => {
-      reportError("Could not open the dates panel or save the selection. Please try again.");
+      reportError("Could not open the dates panel or save the capture. Please try again.");
     });
 });

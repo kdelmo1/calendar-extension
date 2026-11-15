@@ -46,4 +46,12 @@ The latest capture is also saved to `chrome.storage.session` as `pendingCapture`
 6. In that same Console, run `chrome.runtime.onMessage.addListener(message => { if (message.type === "CAPTURE_READY") console.log(message); });`.
 7. Highlight different text on the page and use the menu again. Check that the Console receives `CAPTURE_READY` with the new capture.
 
+## Right-click image capture
+
+The same **Add dates to Google Calendar** menu appears when right-clicking an image. It sends `{ type: "CAPTURE_READY", payload: { kind: "image", imageUrl, pageUrl, pageTitle } }` and saves the same payload in `pendingCapture`. If text is selected while right-clicking an image, the clicked image takes priority. No MIME type is guessed from the URL.
+
+Lane 2 receives the original image URL; fetching and parsing that image remain Lane 2's responsibility. A page-local `blob:` URL or an image requiring a signed-in browser session may not be accessible to the proxy. This capture feature does not download or convert images.
+
+To test, rebuild and reload the extension, then right-click an image (such as a public event flyer) on a normal web page and choose the menu item. In the panel Console, run `chrome.storage.session.get("pendingCapture").then(console.log)`. Expect `kind: "image"`, the clicked image's `imageUrl`, and the page URL and title. Test highlighted text again afterward to confirm it still produces `kind: "text"`.
+
 OAuth configuration, GET_TOKEN, highlighted text capture, and file/text helpers are implemented. Live Google sign-in must be tested in Chrome. See `../capture/README.md` for Lane 4 helper usage and testing.
