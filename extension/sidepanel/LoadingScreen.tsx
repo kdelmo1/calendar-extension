@@ -33,7 +33,7 @@ export default function LoadingScreen({ message }: Props) {
       />
       <p style={{ margin: 0 }}>{message}</p>
       {slow && (
-        <p style ={{margin:"8px 0 0", frontSize: 13}}>
+        <p style ={{margin:"8px 0 0", fontSize: 13}}>
           Still working. Big pages can take up to 30 seconds.
         </p>
       )}
