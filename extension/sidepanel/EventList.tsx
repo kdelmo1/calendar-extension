@@ -2,34 +2,29 @@ import type { CalendarEvent } from "./types";
 
 // Turn the start/end strings into something readable for a person.
 function formatWhen(event: CalendarEvent): string {
-  if (event.allDay) {
-    // All-day events use "YYYY-MM-DD". Show a range only if the end differs.
-    return event.start === event.end
-      ? event.start
-      : `${event.start} to ${event.end}`;
-  }
-  const start = new Date(event.start).toLocaleString();
-  const end = new Date(event.end).toLocaleString();
-  return `${start} to ${end}`;
+  const format = (value: string) => {
+    // Preserve the dates/clock times the user reviewed, avoiding browser-zone shifts.
+    const date = new Date(event.allDay ? `${value.slice(0, 10)}T00:00:00Z` : `${value.slice(0, 16)}Z`);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+      ...(event.allDay ? {} : { hour: "numeric", minute: "2-digit" }),
+    }).format(date);
+  };
+  return event.start === event.end ? format(event.start) : `${format(event.start)} – ${format(event.end)}`;
 }
 
 type Props = { events: CalendarEvent[] };
 
 export default function EventList({ events }: Props) {
   return (
-    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+    <ul className="added-event-list">
       {events.map((event) => (
         <li
           key={event.id}
-          style={{ padding: "8px 0", borderBottom: "1px solid #ddd" }}
         >
-          <strong>{event.title}</strong>
-          <div>{formatWhen(event)}</div>
-          <div style={{ fontSize: 12 }}>
-            {event.category}
-            {/* Show a plain-text flag for low confidence (not color alone) */}
-            {event.confidence < 0.7 && " · Needs checking"}
-          </div>
+          <span className="event-title">{event.title}</span>
+          <span className="secondary-text">{formatWhen(event)}</span>
         </li>
       ))}
     </ul>

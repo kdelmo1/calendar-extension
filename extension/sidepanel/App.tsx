@@ -6,6 +6,7 @@ import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
 import SuccessScreen from "./SuccessScreen";
 import Header from "./Header";
+import { watchCaptures } from "./captureDelivery";
 import type {
   AppError,
   CaptureInput,
@@ -44,7 +45,7 @@ type Screen =
   | { name: "input" }
   | { name: "loading"; message: string }
   | { name: "review"; data: ParseResult }
-  | { name: "success"; result: WriteResult }
+  | { name: "success"; result: WriteResult; submitted: ParseResult | null }
   | { name: "undone" }
   | { name: "error"; error: AppError };
 
@@ -86,12 +87,6 @@ function send(message: Message) {
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
-// Forget the capture Lane 1 saved for us, so it can't start twice.
-function clearPendingCapture() {
-  if (typeof chrome === "undefined" || !chrome.storage?.session) return;
-  chrome.storage.session.remove("pendingCapture").catch(() => {});
-}
-
 // TEMPORARY fake for testing plain-English edits without Lane 2.
 function fakeEdit(req: EditRequest): EditResult {
   const base = {
@@ -122,6 +117,8 @@ export default function App() {
   // The last events the user reviewed. null until real events exist, so a retry
   // can never write fake events to someone's real calendar.
   const [lastReviewed, setLastReviewed] = useState<ParseResult | null>(null);
+  // Keep the exact write attempt available to the long-lived result listener.
+  const writeAttempt = useRef<ParseResult | null>(null);
   // What the user last tried, so "Retry" knows what to repeat.
   const [lastInput, setLastInput] = useState<CaptureInput | null>(null);
   // Events that failed to write, for "Retry the failed events".
@@ -132,9 +129,6 @@ export default function App() {
   const [editNote, setEditNote] = useState<{ text: string; isError: boolean } | null>(null);
   const [editReplacement, setEditReplacement] = useState<{ result: ParseResult; n: number } | null>(null);
   const editTimer = useRef<number | undefined>(undefined);
-
-  // The capture we started from storage, so a live message for it is ignored.
-  const startedFromStorage = useRef<string | null>(null);
 
   // After loading, keyboard focus would be lost. Put it on the review heading.
   const reviewHeading = useRef<HTMLHeadingElement>(null);
@@ -188,6 +182,7 @@ export default function App() {
 
   // Sends events to Lane 3 (and fakes the reply while USE_FAKE_BACKEND is on).
   function sendWrite(result: ParseResult) {
+    writeAttempt.current = result;
     setScreen({ name: "loading", message: "Creating your calendar…" });
     send({ type: "WRITE_REQUEST", payload: result });
 
@@ -212,7 +207,7 @@ export default function App() {
     const result = payload as WriteResult;
     // Remember which events failed, in case the user retries them.
     setFailedIds((result.failed ?? []).map((f) => f.eventId));
-    setScreen({ name: "success", result });
+    setScreen({ name: "success", result, submitted: writeAttempt.current });
   }
 
   // ---------- Undo (Lane 3) ----------
@@ -267,8 +262,8 @@ export default function App() {
   // ---------- Error recovery ----------
   // What the recovery button does, depending on the error code.
   function goHome() {
-  setEditNote(null);
-  setScreen({ name: "input" });
+    setEditNote(null);
+    setScreen({ name: "input" });
   }
 
   function recover(code: AppError["code"]) {
@@ -298,35 +293,14 @@ export default function App() {
     }
   }
 
-  // When the panel opens, pick up a capture that Lane 1 saved for us.
-  // (The live CAPTURE_READY message can arrive before this panel is ready.)
-  useEffect(() => {
-    if (typeof chrome === "undefined" || !chrome.storage?.session) return;
-    chrome.storage.session
-      .get("pendingCapture")
-      .then(({ pendingCapture }) => {
-        if (!pendingCapture) return;
-        clearPendingCapture();
-        const input = pendingCapture as CaptureInput;
-        startedFromStorage.current = JSON.stringify(input);
-        handleInputSubmit(input);
-      })
-      .catch(() => {});
-  }, []);
-
   // Listen for messages from the other lanes.
   useEffect(() => {
     if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
+    const captures = watchCaptures(handleInputSubmit);
 
     function listener(message: Message) {
       if (message.type === "CAPTURE_READY") {
-        clearPendingCapture();
-        // Same capture we already started from storage? Don't start it twice.
-        if (startedFromStorage.current === JSON.stringify(message.payload)) {
-          startedFromStorage.current = null;
-          return;
-        }
-        startParsing(message.payload as CaptureInput);
+        void captures.receiveLive(message.payload as CaptureInput);
       }
       if (message.type === "PARSE_RESULT") handleParseResult(message.payload);
       if (message.type === "WRITE_RESULT") handleWriteResult(message.payload);
@@ -335,14 +309,20 @@ export default function App() {
     }
 
     chrome.runtime.onMessage.addListener(listener);
-    return () => chrome.runtime.onMessage.removeListener(listener);
+    return () => {
+      captures.dispose();
+      chrome.runtime.onMessage.removeListener(listener);
+    };
   }, []);
 
   return (
     <>
       <GlobalStyles />
-      <Header onHome={screen.name === "input" ? undefined : goHome} />
       <main className="app">
+        <Header
+          onHome={screen.name === "input" ? undefined : goHome}
+          className={screen.name === "input" ? "theme-toolbar theme-toolbar-input" : "theme-toolbar"}
+        />
         {/* Always on the page, so changes are announced reliably. */}
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {announce(screen)}
@@ -412,8 +392,9 @@ export default function App() {
         {screen.name === "success" && (
           <SuccessScreen
             result={screen.result}
+            submitted={screen.submitted}
             onUndo={() => handleUndo(screen.result.calendarId)}
-            onConvertMore = {goHome}
+            onConvertMore={goHome}
           />
         )}
 
@@ -421,12 +402,12 @@ export default function App() {
           <div>
             <h1 style={{ fontSize: 18 }}>Calendar removed</h1>
             <p>Nothing from this import is left in your Google Calendar.</p>
-              <div className="cal-row" style={{ alignItems: "center" }}>
+              <div className="result-actions">
                 {lastReviewed ? (
                   <>
                     <button
                       type="button"
-                      className="cal-btn cal-btn-filled"
+                      className="primary"
                       onClick={goHome}
                     >
                       Convert more
@@ -434,14 +415,13 @@ export default function App() {
 
                     <button
                       type="button"
-                      className="cal-btn cal-btn-text"
                       onClick={() => setScreen({ name: "review", data: lastReviewed })}
                     >
                       Back to review
                     </button>
                   </>
                 ) : (
-                  <button type="button" className="cal-btn cal-btn-filled" onClick={goHome}>
+                  <button type="button" className="primary" onClick={goHome}>
                     Start over
                   </button>
                 )}

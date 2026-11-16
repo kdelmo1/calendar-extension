@@ -28,6 +28,8 @@ function isSupported(file: File): boolean {
 export default function InputScreen({ onSubmit }: Props) {
   const [text, setText] = useState("");
   const [problem, setProblem] = useState(""); // inline message, empty = none
+  const [selectedFile, setSelectedFile] = useState<{ name: string; reading: boolean } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Put focus on the heading when the screen appears.
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -42,25 +44,31 @@ export default function InputScreen({ onSubmit }: Props) {
     if (!file) return;
 
     if (!isSupported(file)) {
+      setSelectedFile(null);
       setProblem(
         "That file type isn't supported. Use a PDF, TXT, MD, PNG, JPEG or WebP file."
       );
       return;
     }
     if (file.size > MAX_BYTES) {
+      setSelectedFile(null);
       setProblem("That file is over 10 MB. Try a smaller one.");
       return;
     }
     try {
       setProblem("");
+      setSelectedFile({ name: file.name, reading: true });
       const result = await fileToCaptureInput(file);
       // Lane 1 returns an AppError when it can't read the file.
       if ("code" in result) {
+        setSelectedFile(null);
         setProblem(result.message);
         return;
       }
+      setSelectedFile({ name: file.name, reading: false });
       onSubmit(result);
     } catch {
+      setSelectedFile(null);
       setProblem("Couldn't read that file. Try another one.");
     }
   }
@@ -78,54 +86,70 @@ export default function InputScreen({ onSubmit }: Props) {
   }
 
   return (
-    <div>
-      <h1 ref={headingRef} tabIndex={-1} style={{ fontSize: 18 }}>
-        Add your dates
-      </h1>
-      <p>
-        Highlight text on a page, right-click an image, or add a file or text
-        here.
-      </p>
+    <div className="input-screen">
+      <div className="input-intro">
+        <h1 ref={headingRef} tabIndex={-1}>Add dates</h1>
+        <p>Upload a file or paste dates.</p>
+      </div>
 
       {/* Problems are announced to screen readers as soon as they appear. */}
       {problem && (
-        <p role="alert" style={{ color: "#b00020", fontWeight: "bold" }}>
+        <p role="alert" className="input-problem">
           {problem}
         </p>
       )}
 
-      <section aria-labelledby="upload-heading" style={{ marginBottom: 16 }}>
-        <h2 id="upload-heading" style={{ fontSize: 16 }}>
+      <section className="upload-area" aria-labelledby="upload-heading">
+        <h2 id="upload-heading">
           Upload a file
         </h2>
-        <label htmlFor="file-input">
-          PDF, TXT, MD, PNG, JPEG or WebP (up to 10 MB)
-        </label>
+        <p id="file-help" className="secondary-text upload-help">
+          PDF, TXT, MD or images. Up to 10 MB.
+        </p>
         <input
+          ref={fileInputRef}
           id="file-input"
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Upload a file"
           type="file"
           accept=".pdf,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp"
           onChange={handleFile}
         />
+        <div className="file-picker">
+          <button
+            type="button"
+            className="file-picker-button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={selectedFile?.reading}
+            aria-describedby="file-help file-status"
+          >
+            Choose file
+          </button>
+          <p id="file-status" className="file-status" role="status" aria-live="polite" aria-atomic="true">
+            {selectedFile
+              ? `${selectedFile.reading ? "Reading: " : "Selected: "}${selectedFile.name}`
+              : "No file chosen"}
+          </p>
+        </div>
       </section>
 
-      <section aria-labelledby="paste-heading">
-        <h2 id="paste-heading" style={{ fontSize: 16 }}>
-          Or paste text
+      <section className="paste-area" aria-labelledby="paste-heading">
+        <h2 id="paste-heading">
+          Paste text
         </h2>
-        <label htmlFor="paste-input">Text that contains dates</label>
+        <label htmlFor="paste-input" className="sr-only">Text that contains dates</label>
         <textarea
           id="paste-input"
           rows={6}
+          placeholder="e.g. Midterm — February 10, 2027"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          style={{ width: "100%", boxSizing: "border-box" }}
         />
         <button
           type="button"
           className="primary"
           onClick={handlePaste}
-          style={{ marginTop: 8 }}
         >
           Find dates
         </button>
