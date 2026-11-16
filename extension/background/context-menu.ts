@@ -31,12 +31,10 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 async function sendCapture(capture: CaptureInput) {
-  // Save first: the panel's React listener may still be mounting on first open.
-  await chrome.storage.session.set({ pendingCapture: capture });
   try {
     await chrome.runtime.sendMessage({ type: "CAPTURE_READY", payload: capture });
   } catch {
-    // Lane 4 reads pendingCapture on mount if it missed the live message.
+    // The panel's storage listener/initial read also consumes the saved capture.
   }
 }
 
@@ -67,8 +65,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   capture.pageUrl = info.pageUrl ?? tab.url;
   capture.pageTitle = tab.title;
 
-  // Call open immediately, while Chrome still recognizes the menu user gesture.
-  void chrome.sidePanel.open({ windowId: tab.windowId })
+  // Begin saving before opening, without awaiting and losing the user gesture.
+  const saved = chrome.storage.session.set({
+    pendingCapture: capture,
+    pendingCaptureId: crypto.randomUUID(),
+  });
+  const opened = chrome.sidePanel.open({ windowId: tab.windowId });
+  void Promise.all([saved, opened])
     .then(() => sendCapture(capture))
     .catch(() => {
       reportError("Could not open the dates panel or save the capture. Please try again.");

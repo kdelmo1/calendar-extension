@@ -6,6 +6,7 @@ import LoadingScreen from "./LoadingScreen";
 import ReviewScreen from "./ReviewScreen";
 import SuccessScreen from "./SuccessScreen";
 import Header from "./Header";
+import { watchCaptures } from "./captureDelivery";
 import type {
   AppError,
   CaptureInput,
@@ -86,12 +87,6 @@ function send(message: Message) {
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
-// Forget the capture Lane 1 saved for us, so it can't start twice.
-function clearPendingCapture() {
-  if (typeof chrome === "undefined" || !chrome.storage?.session) return;
-  chrome.storage.session.remove("pendingCapture").catch(() => {});
-}
-
 // TEMPORARY fake for testing plain-English edits without Lane 2.
 function fakeEdit(req: EditRequest): EditResult {
   const base = {
@@ -134,9 +129,6 @@ export default function App() {
   const [editNote, setEditNote] = useState<{ text: string; isError: boolean } | null>(null);
   const [editReplacement, setEditReplacement] = useState<{ result: ParseResult; n: number } | null>(null);
   const editTimer = useRef<number | undefined>(undefined);
-
-  // The capture we started from storage, so a live message for it is ignored.
-  const startedFromStorage = useRef<string | null>(null);
 
   // After loading, keyboard focus would be lost. Put it on the review heading.
   const reviewHeading = useRef<HTMLHeadingElement>(null);
@@ -301,35 +293,14 @@ export default function App() {
     }
   }
 
-  // When the panel opens, pick up a capture that Lane 1 saved for us.
-  // (The live CAPTURE_READY message can arrive before this panel is ready.)
-  useEffect(() => {
-    if (typeof chrome === "undefined" || !chrome.storage?.session) return;
-    chrome.storage.session
-      .get("pendingCapture")
-      .then(({ pendingCapture }) => {
-        if (!pendingCapture) return;
-        clearPendingCapture();
-        const input = pendingCapture as CaptureInput;
-        startedFromStorage.current = JSON.stringify(input);
-        handleInputSubmit(input);
-      })
-      .catch(() => {});
-  }, []);
-
   // Listen for messages from the other lanes.
   useEffect(() => {
     if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
+    const captures = watchCaptures(handleInputSubmit);
 
     function listener(message: Message) {
       if (message.type === "CAPTURE_READY") {
-        clearPendingCapture();
-        // Same capture we already started from storage? Don't start it twice.
-        if (startedFromStorage.current === JSON.stringify(message.payload)) {
-          startedFromStorage.current = null;
-          return;
-        }
-        startParsing(message.payload as CaptureInput);
+        void captures.receiveLive(message.payload as CaptureInput);
       }
       if (message.type === "PARSE_RESULT") handleParseResult(message.payload);
       if (message.type === "WRITE_RESULT") handleWriteResult(message.payload);
@@ -338,7 +309,10 @@ export default function App() {
     }
 
     chrome.runtime.onMessage.addListener(listener);
-    return () => chrome.runtime.onMessage.removeListener(listener);
+    return () => {
+      captures.dispose();
+      chrome.runtime.onMessage.removeListener(listener);
+    };
   }, []);
 
   return (

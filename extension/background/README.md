@@ -32,15 +32,15 @@ Share with the team: "Our development Chrome extension ID is `dclcclgfpcknfcfbeh
 
 ## Highlighted text capture
 
-`context-menu.ts` registers **Add dates to Google Calendar** for selected text. Clicking it opens the panel and sends `{ type: "CAPTURE_READY", payload: CaptureInput }`. The payload includes the selected text, page URL, and page title. `../capture/types.ts` defines the handoff type.
+`context-menu.ts` registers **Add dates with Calibrate** for selected text. Clicking it opens the panel and sends `{ type: "CAPTURE_READY", payload: CaptureInput }`. The payload includes the selected text, page URL, and page title. `../capture/types.ts` defines the handoff type.
 
-The latest capture is also saved to `chrome.storage.session` as `pendingCapture` before the message is sent. This avoids losing a selection if the panel has not mounted its message listener yet. Lane 4 should register its runtime listener, then read `pendingCapture` on mount as a fallback. Both paths should update the same capture state rather than start parsing independently; remove `pendingCapture` after consuming it so reopening the panel does not replay it. No panel screens are implemented by Lane 1.
+The worker starts saving `pendingCapture` and a new `pendingCaptureId` before opening the panel, without awaiting and losing the menu user gesture. The panel uses `watchCaptures` from `extension/sidepanel/captureDelivery.ts`: it subscribes to storage changes before its initial read and routes live messages through the same inbox. A synchronous in-memory ID check prevents duplicate parsing, and `handledCaptureId` in session storage prevents replay after reopening. A new click always gets a new ID, even for identical selected text. These IDs are internal session metadata; the runtime message and CaptureInput payload are unchanged. Do not independently remove pendingCapture in another listener.
 
 ### Test
 
 1. Run `npm run build` and reload the extension in `chrome://extensions`.
 2. On a normal web page, select text containing dates.
-3. Right-click and choose **Add dates to Google Calendar**. The panel should open (still empty until Lane 4 adds its UI).
+3. Right-click and choose **Add dates with Calibrate**. The panel should open (still empty until Lane 4 adds its UI).
 4. Right-click inside the side panel, choose **Inspect**, and open the Console.
 5. Run `chrome.storage.session.get("pendingCapture").then(console.log)`. Check `kind: "text"`, your selected text, `pageUrl`, and `pageTitle`.
 6. In that same Console, run `chrome.runtime.onMessage.addListener(message => { if (message.type === "CAPTURE_READY") console.log(message); });`.
@@ -48,10 +48,14 @@ The latest capture is also saved to `chrome.storage.session` as `pendingCapture`
 
 ## Right-click image capture
 
-The same **Add dates to Google Calendar** menu appears when right-clicking an image. It sends `{ type: "CAPTURE_READY", payload: { kind: "image", imageUrl, pageUrl, pageTitle } }` and saves the same payload in `pendingCapture`. If text is selected while right-clicking an image, the clicked image takes priority. No MIME type is guessed from the URL.
+The same **Add dates with Calibrate** menu appears when right-clicking an image. It sends `{ type: "CAPTURE_READY", payload: { kind: "image", imageUrl, pageUrl, pageTitle } }` and saves the same payload in `pendingCapture`. If text is selected while right-clicking an image, the clicked image takes priority. No MIME type is guessed from the URL.
 
 Lane 2 receives the original image URL; fetching and parsing that image remain Lane 2's responsibility. A page-local `blob:` URL or an image requiring a signed-in browser session may not be accessible to the proxy. This capture feature does not download or convert images.
 
 To test, rebuild and reload the extension, then right-click an image (such as a public event flyer) on a normal web page and choose the menu item. In the panel Console, run `chrome.storage.session.get("pendingCapture").then(console.log)`. Expect `kind: "image"`, the clicked image's `imageUrl`, and the page URL and title. Test highlighted text again afterward to confirm it still produces `kind: "text"`.
 
 OAuth configuration, GET_TOKEN, highlighted text capture, and file/text helpers are implemented. Live Google sign-in must be tested in Chrome. See `../capture/README.md` for Lane 4 helper usage and testing.
+
+## First-click capture regression checks
+
+Run `node --test extension/sidepanel/captureDelivery.test.cjs`. Then reload the built extension, close the side panel, highlight dates on a normal page, and choose the Calibrate menu once. It should open directly into loading and then review. Repeat after closing/reopening and with the same selection; each deliberate click should start one parse.
